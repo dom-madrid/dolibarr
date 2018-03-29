@@ -36,9 +36,21 @@ ALTER TABLE llx_website_page ADD COLUMN fk_user_create integer;
 ALTER TABLE llx_website_page ADD COLUMN fk_user_modif integer; 
 ALTER TABLE llx_website_page ADD COLUMN type_container varchar(16) NOT NULL DEFAULT 'page';
 
+DROP TABLE llx_c_accountancy_category;
+DROP TABLE llx_c_accountingaccount;
+
+update llx_propal set fk_statut = 1 where fk_statut = -1;
 
 
 -- For 8.0
+
+delete from llx_rights_def where perms IS NULL;
+delete from llx_user_rights where fk_user not IN (select rowid from llx_user);
+delete from llx_usergroup_rights where fk_usergroup not in (select rowid from llx_usergroup);
+delete from llx_usergroup_rights where fk_id not in (select id from llx_rights_def);
+
+
+ALTER TABLE llx_c_type_fees ADD COLUMN llx_c_type_fees integer DEFAULT 0;
 
 ALTER TABLE llx_product_fournisseur_price DROP COLUMN unitcharges;
 
@@ -119,6 +131,10 @@ ALTER TABLE llx_societe_rib ADD COLUMN starting_date date;
 ALTER TABLE llx_societe_rib ADD COLUMN total_amount_of_all_payments double(24,8);
 ALTER TABLE llx_societe_rib ADD COLUMN stripe_card_ref varchar(128);
 ALTER TABLE llx_societe_rib ADD COLUMN status integer NOT NULL DEFAULT 1;
+
+UPDATE llx_societe_rib set type = 'ban' where type = '' OR type IS NULL;
+-- VMYSQL4.3 ALTER TABLE llx_societe_rib MODIFY COLUMN type varchar(32) NOT NULL;
+-- VPGSQL8.2 ALTER TABLE llx_societe_rib ALTER COLUMN type SET NOT NULL;
    
 CREATE TABLE llx_ticketsup
 (
@@ -185,24 +201,13 @@ CREATE TABLE llx_ticketsup_extrafields
   import_key       varchar(14)
 )ENGINE=innodb;
 
-ALTER TABLE llx_c_ticketsup_category ADD INDEX idx_code (code);
 
-CREATE TABLE llx_c_ticketsup_category
+
+-- Create dictionaries tables for ticket
+create table llx_c_ticketsup_severity
 (
   rowid			integer AUTO_INCREMENT PRIMARY KEY,
-  code			varchar(32)				NOT NULL,
-  pos			varchar(32)				NOT NULL,
-  label			varchar(128)			NOT NULL,
-  active		integer DEFAULT 1,
-  use_default	integer DEFAULT 1,
-  description	varchar(255)
-)ENGINE=innodb;
-
-ALTER TABLE llx_c_ticketsup_severity ADD INDEX idx_code (code);
-
-CREATE TABLE llx_c_ticketsup_severity
-(
-  rowid			integer AUTO_INCREMENT PRIMARY KEY,
+  entity		integer DEFAULT 1,
   code			varchar(32)				NOT NULL,
   pos			varchar(32)				NOT NULL,
   label			varchar(128)			NOT NULL,
@@ -212,11 +217,10 @@ CREATE TABLE llx_c_ticketsup_severity
   description	varchar(255)
 )ENGINE=innodb;
 
-ALTER TABLE llx_c_ticketsup_type ADD INDEX idx_code (code);
-
-CREATE TABLE llx_c_ticketsup_type
+create table llx_c_ticketsup_type
 (
   rowid			integer AUTO_INCREMENT PRIMARY KEY,
+  entity		integer DEFAULT 1,
   code			varchar(32)				NOT NULL,
   pos			varchar(32)				NOT NULL,
   label			varchar(128)			NOT NULL,
@@ -224,6 +228,41 @@ CREATE TABLE llx_c_ticketsup_type
   use_default	integer DEFAULT 1,
   description	varchar(255)
 )ENGINE=innodb;
+
+create table llx_c_ticketsup_category
+(
+  rowid			integer AUTO_INCREMENT PRIMARY KEY,
+  entity		integer DEFAULT 1,
+  code			varchar(32)				NOT NULL,
+  pos			varchar(32)				NOT NULL,
+  label			varchar(128)			NOT NULL,
+  active		integer DEFAULT 1,
+  use_default	integer DEFAULT 1,
+  description	varchar(255)
+)ENGINE=innodb;
+
+ALTER TABLE llx_c_ticketsup_category ADD UNIQUE INDEX uk_code (code, entity);
+ALTER TABLE llx_c_ticketsup_severity ADD UNIQUE INDEX uk_code (code, entity);
+ALTER TABLE llx_c_ticketsup_type     ADD UNIQUE INDEX uk_code (code, entity);
+
+
+
+-- Load data
+INSERT INTO llx_c_ticketsup_severity (code, pos, label, color, active, use_default, description) VALUES('LOW',      '10', 'Low',                 '', 1, 0, NULL);
+INSERT INTO llx_c_ticketsup_severity (code, pos, label, color, active, use_default, description) VALUES('NORMAL',   '20', 'Normal',              '', 1, 1, NULL);
+INSERT INTO llx_c_ticketsup_severity (code, pos, label, color, active, use_default, description) VALUES('HIGH',     '30', 'High',                '', 1, 0, NULL);
+INSERT INTO llx_c_ticketsup_severity (code, pos, label, color, active, use_default, description) VALUES('BLOCKING', '40', 'Critical / blocking', '', 1, 0, NULL);
+
+INSERT INTO llx_c_ticketsup_type (code, pos, label, active, use_default, description) VALUES('COM',     '10', 'Commercial question',           1, 1, NULL);
+INSERT INTO llx_c_ticketsup_type (code, pos, label, active, use_default, description) VALUES('ISSUE',   '20', 'Issue or problem'  ,            1, 0, NULL);
+INSERT INTO llx_c_ticketsup_type (code, pos, label, active, use_default, description) VALUES('REQUEST', '25', 'Change or enhancement request', 1, 0, NULL);
+INSERT INTO llx_c_ticketsup_type (code, pos, label, active, use_default, description) VALUES('PROJECT', '30', 'Project', 0, 0, NULL);
+INSERT INTO llx_c_ticketsup_type (code, pos, label, active, use_default, description) VALUES('OTHER',   '40', 'Other',   1, 0, NULL);
+
+INSERT INTO llx_c_ticketsup_category (code, pos, label, active, use_default, description) VALUES('OTHER', '10', 'Other',           1, 1, NULL);
+
+
+
 
 
 ALTER TABLE llx_facturedet_rec ADD COLUMN date_start_fill integer DEFAULT 0;
@@ -235,8 +274,9 @@ CREATE TABLE llx_societe_account(
 	-- BEGIN MODULEBUILDER FIELDS
 	rowid integer AUTO_INCREMENT PRIMARY KEY NOT NULL,
 	entity	integer DEFAULT 1, 
+	key_account       varchar(128),
 	login             varchar(128) NOT NULL, 
-    pass_encoding     varchar(24) NOT NULL,
+    pass_encoding     varchar(24),
     pass_crypted      varchar(128),
     pass_temp         varchar(128),			    -- temporary password when asked for forget password
     fk_soc integer,
@@ -254,17 +294,44 @@ CREATE TABLE llx_societe_account(
 	-- END MODULEBUILDER FIELDS
 ) ENGINE=innodb;
 
+-- VMYSQL4.3 ALTER TABLE llx_societe_account MODIFY COLUMN pass_encoding varchar(24) NULL;
 
--- BEGIN MODULEBUILDER INDEXES
+ALTER TABLE llx_const MODIFY type varchar(64) DEFAULT 'string';
+
+UPDATE llx_const set type = 'text' where type = 'texte';
+UPDATE llx_const set type = 'html' where name in (__ENCRYPT('ADHERENT_AUTOREGISTER_NOTIF_MAIL')__,__ENCRYPT('ADHERENT_AUTOREGISTER_MAIL')__,__ENCRYPT('ADHERENT_MAIL_VALID')__,__ENCRYPT('ADHERENT_MAIL_COTIS')__,__ENCRYPT('ADHERENT_MAIL_RESIL')__);
+
+--UPDATE llx_const SET value = '', type = 'emailtemplate:member' WHERE name = __ENCRYPT('ADHERENT_AUTOREGISTER_MAIL')__ AND type != 'emailtemplate:member';
+--UPDATE llx_const SET value = '', type = 'emailtemplate:member' WHERE name = __ENCRYPT('ADHERENT_MAIL_VALID')__ AND type != 'emailtemplate:member';
+--UPDATE llx_const SET value = '', type = 'emailtemplate:member' WHERE name = __ENCRYPT('ADHERENT_MAIL_COTIS')__ AND type != 'emailtemplate:member';
+--UPDATE llx_const SET value = '', type = 'emailtemplate:member' WHERE name = __ENCRYPT('ADHERENT_MAIL_RESIL')__ AND type != 'emailtemplate:member';
+
+ALTER TABLE llx_societe_account ADD COLUMN key_account varchar(128);
+
 ALTER TABLE llx_societe_account ADD INDEX idx_societe_account_rowid (rowid);
 ALTER TABLE llx_societe_account ADD INDEX idx_societe_account_login (login);
 ALTER TABLE llx_societe_account ADD INDEX idx_societe_account_status (status);
 ALTER TABLE llx_societe_account ADD INDEX idx_societe_account_fk_website (fk_website);
 ALTER TABLE llx_societe_account ADD INDEX idx_societe_account_fk_soc (fk_soc);
--- END MODULEBUILDER INDEXES
 
 ALTER TABLE llx_societe_account ADD UNIQUE INDEX uk_societe_account_login_website_soc(entity, fk_soc, login, site, fk_website);
+ALTER TABLE llx_societe_account ADD UNIQUE INDEX uk_societe_account_key_account_soc(entity, fk_soc, key_account, site, fk_website);
 
 ALTER TABLE llx_societe_account ADD CONSTRAINT llx_societe_account_fk_website FOREIGN KEY (fk_website) REFERENCES llx_website(rowid);
 ALTER TABLE llx_societe_account ADD CONSTRAINT llx_societe_account_fk_societe FOREIGN KEY (fk_soc) REFERENCES llx_societe(rowid);
+
+
+ALTER TABLE llx_societe_rib MODIFY COLUMN max_total_amount_of_all_payments double(24,8);
+ALTER TABLE llx_societe_rib MODIFY COLUMN total_amount_of_all_payments double(24,8);
+
+
+INSERT INTO llx_c_email_templates (entity,module,type_template,lang,private,fk_user,datec,label,position,enabled,active,topic,content,content_lines,joinfiles) VALUES (0,'adherent','member','',0,null,null,'(SendingEmailOnAutoSubscription)'       ,10,1,1,'[__[MAIN_INFO_SOCIETE_NOM]__] __(YourMembershipRequestWasReceived)__','__(Hello)__ __MEMBER_FULLNAME__,<br><br>\n\n__(ThisIsContentOfYourMembershipRequestWasReceived)__<br>\n<br>__ONLINE_PAYMENT_TEXT_AND_URL__<br>\n<br><br>\n__(Sincerely)__<br>__USER_SIGNATURE__',null, 1);
+INSERT INTO llx_c_email_templates (entity,module,type_template,lang,private,fk_user,datec,label,position,enabled,active,topic,content,content_lines,joinfiles) VALUES (0,'adherent','member','',0,null,null,'(SendingEmailOnMemberValidation)'       ,20,1,1,'[__[MAIN_INFO_SOCIETE_NOM]__] __(YourMembershipWasValidated)__',      '__(Hello)__ __MEMBER_FULLNAME__,<br><br>\n\n__(ThisIsContentOfYourMembershipWasValidated)__<br>\n<br>__ONLINE_PAYMENT_TEXT_AND_URL__<br>\n<br><br>\n__(Sincerely)__<br>__USER_SIGNATURE__',null, 1);
+INSERT INTO llx_c_email_templates (entity,module,type_template,lang,private,fk_user,datec,label,position,enabled,active,topic,content,content_lines,joinfiles) VALUES (0,'adherent','member','',0,null,null,'(SendingEmailOnNewSubscription)'        ,30,1,1,'[__[MAIN_INFO_SOCIETE_NOM]__] __(YourSubscriptionWasRecorded)__',     '__(Hello)__ __MEMBER_FULLNAME__,<br><br>\n\n__(ThisIsContentOfYourSubscriptionWasRecorded)__<br>\n\n<br><br>\n__(Sincerely)__<br>__USER_SIGNATURE__',null, 1);
+INSERT INTO llx_c_email_templates (entity,module,type_template,lang,private,fk_user,datec,label,position,enabled,active,topic,content,content_lines,joinfiles) VALUES (0,'adherent','member','',0,null,null,'(SendingReminderForExpiredSubscription)',40,1,1,'[__[MAIN_INFO_SOCIETE_NOM]__] __(SubscriptionReminderEmail)__',       '__(Hello)__ __MEMBER_FULLNAME__,<br><br>\n\n__(ThisIsContentOfSubscriptionReminderEmail)__<br>\n<br>__ONLINE_PAYMENT_TEXT_AND_URL__<br>\n<br><br>\n__(Sincerely)__<br>__USER_SIGNATURE__',null, 1);
+INSERT INTO llx_c_email_templates (entity,module,type_template,lang,private,fk_user,datec,label,position,enabled,active,topic,content,content_lines,joinfiles) VALUES (0,'adherent','member','',0,null,null,'(SendingEmailOnCancelation)'            ,50,1,1,'[__[MAIN_INFO_SOCIETE_NOM]__] __(YourMembershipWasCanceled)__',       '__(Hello)__ __MEMBER_FULLNAME__,<br><br>\n\n__(YourMembershipWasCanceled)__<br>\n<br><br>\n__(Sincerely)__<br>__USER_SIGNATURE__',null, 1);
+INSERT INTO llx_c_email_templates (entity,module,type_template,lang,private,fk_user,datec,label,position,enabled,active,topic,content,content_lines,joinfiles) VALUES (0,'adherent','member','',0,null,null,'(SendingAnEMailToMember)'               ,60,1,1,'[__[MAIN_INFO_SOCIETE_NOM]__] __(CardContent)__',                     '__(Hello)__,<br><br>\n\n__(ThisIsContentOfYourCard)__<br>\n__(ID)__ : __ID__<br>\n__(Civiliyty)__ : __MEMBER_CIVILITY__<br>\n__(Firstname)__ : __MEMBER_FIRSTNAME__<br>\n__(Lastname)__ : __MEMBER_LASTNAME__<br>\n__(Fullname)__ : __MEMBER_FULLNAME__<br>\n__(Company)__ : __MEMBER_COMPANY__<br>\n__(Address)__ : __MEMBER_ADDRESS__<br>\n__(Zip)__ : __MEMBER_ZIP__<br>\n__(Town)__ : __MEMBER_TOWN__<br>\n__(Country)__ : __MEMBER_COUNTRY__<br>\n__(Email)__ : __MEMBER_EMAIL__<br>\n__(Birthday)__ : __MEMBER_BIRTH__<br>\n__(Photo)__ : __MEMBER_PHOTO__<br>\n__(Login)__ : __MEMBER_LOGIN__<br>\n__(Password)__ : __MEMBER_PASSWORD__<br>\n__(Phone)__ : __MEMBER_PHONE__<br>\n__(PhonePerso)__ : __MEMBER_PHONEPRO__<br>\n__(PhoneMobile)__ : __MEMBER_PHONEMOBILE__<br><br>\n__(Sincerely)__<br>__USER_SIGNATURE__',null, 1);
+
+ALTER TABLE llx_product ADD COLUMN fk_default_warehouse integer DEFAULT NULL;
+ALTER TABLE  llx_product ADD CONSTRAINT fk_product_default_warehouse FOREIGN KEY (fk_default_warehouse) REFERENCES llx_entrepot (rowid);
 

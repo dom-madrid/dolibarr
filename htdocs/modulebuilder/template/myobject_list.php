@@ -36,6 +36,8 @@
 //if (! defined('NOREQUIREHTML'))          define('NOREQUIREHTML','1');			// If we don't need to load the html.form.class.php
 //if (! defined('NOREQUIREAJAX'))          define('NOREQUIREAJAX','1');         // Do not load ajax.lib.php library
 //if (! defined("NOLOGIN"))                define("NOLOGIN",'1');				// If this page is public (can be called outside logged session)
+//if (! defined("MAIN_LANG_DEFAULT"))      define('MAIN_LANG_DEFAULT','auto');
+//if (! defined("MAIN_AUTHENTICATION_MODE")) define('MAIN_AUTHENTICATION_MODE','aloginmodule');
 
 
 // Load Dolibarr environment
@@ -96,14 +98,14 @@ $search_array_options=$extrafields->getOptionalsFromPost($extralabels,'','search
 if (! $sortfield) $sortfield="t.".key($object->fields);   // Set here default search field. By default 1st field in definition.
 if (! $sortorder) $sortorder="ASC";
 
-// Protection if external user
+// Security check
 $socid=0;
-if ($user->societe_id > 0)
+if ($user->societe_id > 0)	// Protection if external user
 {
 	//$socid = $user->societe_id;
 	accessforbidden();
 }
-//$result = restrictedArea($user, 'mymodule', $id,'');
+//$result = restrictedArea($user, 'mymodule', $id, '');
 
 // Initialize array of search criterias
 $search_all=trim(GETPOST("search_all",'alpha'));
@@ -220,6 +222,7 @@ if ($object->ismultientitymanaged == 1) $sql.= " WHERE t.entity IN (".getEntity(
 else $sql.=" WHERE 1 = 1";
 foreach($search as $key => $val)
 {
+	if ($key == 'status' && $search[$key] == -1) continue;
 	$mode_search=(($object->isInt($object->fields[$key]) || $object->isFloat($object->fields[$key]))?1:0);
 	if ($search[$key] != '') $sql.=natural_search($key, $search[$key], (($key == 'status')?2:$mode_search));
 }

@@ -309,8 +309,6 @@ else
 {
     if ($id)
     {
-        $object->fetch($id);
-
         $head = group_prepare_head($object);
         $title = $langs->trans("Group");
 
@@ -460,7 +458,7 @@ else
 						if (! empty($user->admin))
 						{
 							print '<a href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&amp;action=removeuser&amp;user='.$useringroup->id.'">';
-							print img_delete($langs->trans("RemoveFromGroup"));
+							print img_picto($langs->trans("RemoveFromGroup"), 'unlink');
 							print '</a>';
 						}
 						else

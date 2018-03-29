@@ -63,9 +63,9 @@ class pdf_canelle extends ModelePDFSuppliersInvoices
 	function __construct($db)
 	{
 		global $conf,$langs,$mysoc;
-
-		$langs->load("main");
-		$langs->load("bills");
+		
+		// Translations
+		$langs->loadLangs(array("main", "bills"));
 
 		$this->db = $db;
 		$this->name = "canelle";
@@ -1086,7 +1086,7 @@ class pdf_canelle extends ModelePDFSuppliersInvoices
 		if ($showaddress)
 		{
 			// Sender properties
-			$carac_emetteur = pdf_build_address($outputlangs, $this->emetteur, $object->thirdparty);
+			$carac_emetteur = pdf_build_address($outputlangs, $this->emetteur, $object->thirdparty, '', 0, 'source', $object);
 
 			// Show sender
 			$posy=42;

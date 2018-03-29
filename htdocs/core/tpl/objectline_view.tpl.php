@@ -138,14 +138,15 @@ if (empty($outputalsopricetotalwithtax)) $outputalsopricetotalwithtax=0;
 
 		// Show date range
 		if ($line->element == 'facturedetrec') {
-			if ($line->date_start_fill || $line->date_end_fill) echo '<br><br><div class="nowraponall">';
+			if ($line->date_start_fill || $line->date_end_fill) echo '<br><div class="clearboth nowraponall">';
 			if ($line->date_start_fill) echo $langs->trans('AutoFillDateFromShort').': '.yn($line->date_start_fill);
 			if ($line->date_start_fill && $line->date_end_fill) echo ' - ';
 			if ($line->date_end_fill) echo $langs->trans('AutoFillDateToShort').': '.yn($line->date_end_fill);
 			if ($line->date_start_fill || $line->date_end_fill) echo '</div>';
 		}
 		else {
-			echo get_date_range($line->date_start, $line->date_end, $format);
+			echo '<br><div class="clearboth nowraponall">'.get_date_range($line->date_start, $line->date_end, $format).'</div>';
+			//echo get_date_range($line->date_start, $line->date_end, $format);
 		}
 
 		// Add description in form
@@ -154,6 +155,14 @@ if (empty($outputalsopricetotalwithtax)) $outputalsopricetotalwithtax=0;
 			print (! empty($line->description) && $line->description!=$line->product_label)?'<br>'.dol_htmlentitiesbr($line->description):'';
 		}
 	}
+
+	if (! empty($conf->accounting->enabled) && $line->fk_accounting_account > 0)
+	{
+		$accountingaccount=new AccountingAccount($this->db);
+		$accountingaccount->fetch($line->fk_accounting_account);
+		echo '<div class="clearboth"></div><br><span class="opacitymedium">' . $langs->trans('AccountingAffectation') . ' : </span>' . $accountingaccount->getNomUrl(0,1,1);
+	}
+
 	?>
 	</td>
 	<?php
@@ -268,9 +277,13 @@ if (empty($outputalsopricetotalwithtax)) $outputalsopricetotalwithtax=0;
 	<td class="linecoldelete" align="center"><?php $coldisplay++; ?>
 		<?php
 		if (($this->situation_counter == 1 || !$this->situation_cycle_ref) && empty($disableremove)) {
-			print '<a href="' . $_SERVER["PHP_SELF"] . '?id=' . $this->id . '&amp;action=ask_deleteline&amp;lineid=' . $line->id . '">';
+			print '<a'.($conf->use_javascript_ajax?' class="butActionFormConfirm" data-action-confirm="ask_deleteline"':'').' href="' . $_SERVER["PHP_SELF"] . '?id=' . $this->id . '&amp;action='.($conf->use_javascript_ajax?'confirm_deleteline':'ask_deleteline').'&amp;lineid=' . $line->id . '">';
 			print img_delete();
 			print '</a>';
+
+			if($conf->use_javascript_ajax) {
+				print $formconfirm['ask_deleteline'];
+			}
 		}
 		?>
 	</td>
@@ -296,13 +309,14 @@ if (empty($outputalsopricetotalwithtax)) $outputalsopricetotalwithtax=0;
 	<td colspan="3"><?php $coldisplay=$coldisplay+3; ?></td>
 <?php } ?>
 
+</tr>
+
 <?php
 //Line extrafield
 if (!empty($extrafieldsline))
 {
-	print $line->showOptionals($extrafieldsline,'view',array('style'=>$bcdd[$var],'colspan'=>$coldisplay));
+	print $line->showOptionals($extrafieldsline, 'view', array('style'=>$bcdd[$var],'colspan'=>$coldisplay), '', '', empty($conf->global->MAIN_EXTRAFIELDS_IN_ONE_TD)?0:1);
 }
 ?>
 
-</tr>
 <!-- END PHP TEMPLATE objectline_view.tpl.php -->

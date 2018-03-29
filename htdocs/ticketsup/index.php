@@ -16,9 +16,8 @@
  */
 
 /**
- *     Index page for ticket module
- *
- *    @package ticketsup
+ *    \file     htdocs/ticketsup/history.php
+ *    \ingroup	ticketsup
  */
 
 require '../main.inc.php';
@@ -53,7 +52,7 @@ $year = GETPOST('year') > 0 ? GETPOST('year') : $nowyear;
 $startyear = $year - 1;
 $endyear = $year;
 
-$object = new ActionsTicketsup($db);
+$object = new Ticketsup($db);
 
 
 /*
@@ -67,9 +66,14 @@ $object = new ActionsTicketsup($db);
  * View
  */
 
+$form = new Form($db);
+$tickesupstatic = new Ticketsup($db);
+
 llxHeader('', $langs->trans('TicketsIndex'), '');
 
-$form = new Form($db);
+$linkback='';
+print load_fiche_titre($langs->trans('TicketsIndex'),$linkback,'title_ticketsup.png');
+
 
 $dir = '';
 $filenamenb = $dir . "/" . $prefix . "ticketsupinyear-" . $endyear . ".png";
@@ -176,7 +180,7 @@ if ($result) {
     if ((round($tick['unread']) ? 1 : 0) +(round($tick['read']) ? 1 : 0) +(round($tick['answered']) ? 1 : 0) +(round($tick['assigned']) ? 1 : 0) +(round($tick['inprogress']) ? 1 : 0) +(round($tick['waiting']) ? 1 : 0) +(round($tick['closed']) ? 1 : 0) +(round($tick['deleted']) ? 1 : 0) >= 2
     ) {
         $dataseries = array();
-        $dataseries[] = array('label' => $langs->trans("NotRead"), 'data' => round($tick['unread']));
+        $dataseries[] = array('label' => $langs->trans("Unread"), 'data' => round($tick['unread']));
         $dataseries[] = array('label' => $langs->trans("Read"), 'data' => round($tick['read']));
         $dataseries[] = array('label' => $langs->trans("Answered"), 'data' => round($tick['answered']));
         $dataseries[] = array('label' => $langs->trans("Assigned"), 'data' => round($tick['assigned']));
@@ -212,7 +216,7 @@ print '<tr class="liste_titre"><th >' . $langs->trans("Statistics") . ' ' . img_
 print '<tr><td>';
 
 // don't display graph if no series
-if (count($dataseries) >1) {
+if (! empty($dataseries) && count($dataseries) > 1) {
     $data = array();
     foreach ($dataseries as $key => $value) {
         $data[] = array($value['label'], $value['data']);
@@ -261,8 +265,8 @@ print '</div><div class="fichetwothirdright"><div class="ficheaddleft">';
  * Last tickets
  */
 $max = 15;
-$sql = "SELECT t.rowid, t.ref, t.track_id, t.datec, t.subject, t.type_code, t.category_code, t.severity_code";
-$sql .= ", type.label as type_label, category.label as category_label, severity.label as severity_label";
+$sql = "SELECT t.rowid, t.ref, t.track_id, t.datec, t.subject, t.type_code, t.category_code, t.severity_code, t.fk_statut, t.progress,";
+$sql .= " type.label as type_label, category.label as category_label, severity.label as severity_label";
 $sql .= " FROM " . MAIN_DB_PREFIX . "ticketsup as t";
 $sql .= " LEFT JOIN " . MAIN_DB_PREFIX . "c_ticketsup_type as type ON type.code=t.type_code";
 $sql .= " LEFT JOIN " . MAIN_DB_PREFIX . "c_ticketsup_category as category ON category.code=t.category_code";
@@ -296,6 +300,8 @@ if ($result) {
     $i = 0;
 
     $transRecordedType = $langs->trans("LatestNewTickets", $max);
+
+    print '<div class="div-table-responsive-no-min">';
     print '<table class="noborder" width="100%">';
     print '<tr class="liste_titre"><th>' . $transRecordedType . '</th>';
     print '<th>' . $langs->trans('Ref') . '</th>';
@@ -303,15 +309,21 @@ if ($result) {
     print '<th>' . $langs->trans('Type') . '</th>';
     print '<th>' . $langs->trans('Category') . '</th>';
     print '<th>' . $langs->trans('Severity') . '</th>';
+    print '<th></th>';
     print '</tr>';
     if ($num > 0) {
-        $var = true;
 
         while ($i < $num) {
             $objp = $db->fetch_object($result);
 
-            $var = !$var;
-            print "<tr $bc[$var]>";
+            $tickesupstatic->id = $objp->rowid;
+            $tickesupstatic->ref = $objp->ref;
+            $tickesupstatic->track_id = $objp->track_id;
+            $tickesupstatic->fk_statut = $objp->fk_statut;
+            $tickesupstatic->progress = $objp->progress;
+            $tickesupstatic->subject = $objp->subject;
+
+            print '<tr class="oddeven">';
             // Creation date
             print '<td align="left">';
             print dol_print_date($db->jdate($objp->datec), 'dayhour');
@@ -319,7 +331,7 @@ if ($result) {
 
             // Ref
             print '<td class="nowrap">';
-            print '<a href="card.php?track_id=' . $objp->track_id . '">' . $objp->ref . '</a>';
+            print $tickesupstatic->getNomUrl(1);
             print "</td>\n";
 
             // Subject
@@ -341,6 +353,11 @@ if ($result) {
             print '<td class="nowrap">';
             print $objp->severity_label;
             print "</td>";
+
+            print '<td class="nowrap">';
+            print $tickesupstatic->getLibStatut(3);
+            print "</td>";
+
             print "</tr>\n";
             $i++;
         }
@@ -351,6 +368,7 @@ if ($result) {
     }
 
     print "</table>";
+    print '</div>';
 } else {
     dol_print_error($db);
 }

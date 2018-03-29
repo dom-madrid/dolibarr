@@ -173,12 +173,12 @@ class FormTicketsup
             print "</td></tr>\n";
         }
 
-        // Customer
+        // Customer or supplier
         if ($this->withcompany) {
             // altairis: force company and contact id for external user
             if (empty($user->socid)) {
                 // Company
-                print '<tr><td class="titlefield">' . $langs->trans("Customer") . '</td><td>';
+                print '<tr><td class="titlefield">' . $langs->trans("ThirdParty") . '</td><td>';
                 $events = array();
                 $events[] = array('method' => 'getContacts', 'url' => dol_buildpath('/core/ajax/contacts.php', 1), 'htmlname' => 'contactid', 'params' => array('add-customer-contact' => 'disabled'));
                 print $form->select_company($this->withfromsocid, 'socid', '', 1, 1, '', $events);
@@ -242,7 +242,7 @@ class FormTicketsup
                 // If no socid, set to first one (id=1) to avoid full contacts list
                 $selectedCompany = $this->withfromsocid > 0 ? $this->withfromsocid : 1;
                 $nbofcontacts = $form->select_contacts($selectedCompany, $this->withfromcontactid, 'contactid',  0, '', '', 0, 'minwidth200');
-                $formcompany->selectTypeContact($ticketstatic, '', 'type', 'external');
+                $formcompany->selectTypeContact($ticketstatic, '', 'type', 'external', '', 0, 'maginleftonly');
                 print '</td></tr>';
             } else {
                 print '<tr><td class="titlefield"><input type="hidden" name="socid" value="' . $user->socid . '"/></td>';
@@ -296,9 +296,9 @@ class FormTicketsup
         print $this->selectSeveritiesTickets((GETPOST('severity_code') ? GETPOST('severity_code') : $this->severity_code), 'severity_code', '', '2');
         print '</td></tr>';
 
-        // Not notify tiers at create
-        print '<tr><td><label for="not_notify_tiers_at_create">' . $langs->trans("TicketNotNotifyTiersAtCreate") . '</label></td><td>';
-        print '<input type="checkbox" id="not_notify_tiers_at_create" name="not_notify_tiers_at_create"'.($this->withnotnotifytiersatcreate?' checked="checked"':'').'>';
+        // Notify thirdparty at creation
+        print '<tr><td><label for="notify_tiers_at_create">' . $langs->trans("TicketNotifyTiersAtCreation") . '</label></td><td>';
+        print '<input type="checkbox" id="notify_tiers_at_create" name="notify_tiers_at_create"'.($this->withnotifytiersatcreate?' checked="checked"':'').'>';
         print '</td></tr>';
 
         // TITLE
@@ -418,9 +418,10 @@ class FormTicketsup
      *      @param  int    $empty       1=peut etre vide, 0 sinon
      *      @param  int    $noadmininfo 0=Add admin info, 1=Disable admin info
      *      @param  int    $maxlength   Max length of label
+     *      @param	string	$morecss	More CSS
      *      @return void
      */
-    public function selectTypesTickets($selected = '', $htmlname = 'tickettype', $filtertype = '', $format = 0, $empty = 0, $noadmininfo = 0, $maxlength = 0)
+    public function selectTypesTickets($selected = '', $htmlname = 'tickettype', $filtertype = '', $format = 0, $empty = 0, $noadmininfo = 0, $maxlength = 0, $morecss='')
     {
         global $langs, $user;
 
@@ -436,7 +437,7 @@ class FormTicketsup
 
         $ticketstat->loadCacheTypesTickets();
 
-        print '<select id="select' . $htmlname . '" class="flat select_tickettype" name="' . $htmlname . '">';
+        print '<select id="select' . $htmlname . '" class="flat select_tickettype'.($morecss?' '.$morecss:'').'" name="' . $htmlname . '">';
         if ($empty) {
             print '<option value="">&nbsp;</option>';
         }
@@ -503,6 +504,8 @@ class FormTicketsup
         if ($user->admin && !$noadmininfo) {
             print info_admin($langs->trans("YouCanChangeValuesForThisListFromDictionarySetup"), 1);
         }
+
+        print ajax_combobox('select'.$htmlname);
     }
 
     /**
@@ -513,11 +516,12 @@ class FormTicketsup
      *      @param  string $filtertype  To filter on field type in llx_c_ticketsup_category (array('code'=>xx,'label'=>zz))
      *      @param  int    $format      0=id+libelle, 1=code+code, 2=code+libelle, 3=id+code
      *      @param  int    $empty       1=peut etre vide, 0 sinon
-     *         @param  int    $noadmininfo 0=Add admin info, 1=Disable admin info
+     *      @param  int    $noadmininfo 0=Add admin info, 1=Disable admin info
      *      @param  int    $maxlength   Max length of label
-     *         @return void
+     *      @param	string	$morecss	More CSS
+     *      @return void
      */
-    public function selectCategoriesTickets($selected = '', $htmlname = 'ticketcategory', $filtertype = '', $format = 0, $empty = 0, $noadmininfo = 0, $maxlength = 0)
+    public function selectCategoriesTickets($selected = '', $htmlname = 'ticketcategory', $filtertype = '', $format = 0, $empty = 0, $noadmininfo = 0, $maxlength = 0, $morecss='')
     {
         global $langs, $user;
 
@@ -533,7 +537,7 @@ class FormTicketsup
 
         $ticketstat->loadCacheCategoriesTickets();
 
-        print '<select id="select' . $htmlname . '" class="flat select_ticketcategory" name="' . $htmlname . '">';
+        print '<select id="select' . $htmlname . '" class="flat select_ticketcategory'.($morecss?' '.$morecss:'').'" name="' . $htmlname . '">';
         if ($empty) {
             print '<option value="">&nbsp;</option>';
         }
@@ -601,6 +605,8 @@ class FormTicketsup
         if ($user->admin && !$noadmininfo) {
             print info_admin($langs->trans("YouCanChangeValuesForThisListFromDictionarySetup"), 1);
         }
+
+        print ajax_combobox('select'.$htmlname);
     }
 
     /**
@@ -611,11 +617,12 @@ class FormTicketsup
      *      @param  string $filtertype  To filter on field type in llx_c_ticketsup_severity (array('code'=>xx,'label'=>zz))
      *      @param  int    $format      0=id+libelle, 1=code+code, 2=code+libelle, 3=id+code
      *      @param  int    $empty       1=peut etre vide, 0 sinon
-     *         @param  int    $noadmininfo 0=Add admin info, 1=Disable admin info
+     *      @param  int    $noadmininfo 0=Add admin info, 1=Disable admin info
      *      @param  int    $maxlength   Max length of label
-     *         @return void
+     *      @param	string	$morecss	More CSS
+     *      @return void
      */
-    public function selectSeveritiesTickets($selected = '', $htmlname = 'ticketseverity', $filtertype = '', $format = 0, $empty = 0, $noadmininfo = 0, $maxlength = 0)
+    public function selectSeveritiesTickets($selected = '', $htmlname = 'ticketseverity', $filtertype = '', $format = 0, $empty = 0, $noadmininfo = 0, $maxlength = 0, $morecss='')
     {
         global $langs, $user;
 
@@ -631,7 +638,7 @@ class FormTicketsup
 
         $ticketstat->loadCacheSeveritiesTickets();
 
-        print '<select id="select' . $htmlname . '" class="flat select_ticketseverity" name="' . $htmlname . '">';
+        print '<select id="select' . $htmlname . '" class="flat select_ticketseverity'.($morecss?' '.$morecss:'').'" name="' . $htmlname . '">';
         if ($empty) {
             print '<option value="">&nbsp;</option>';
         }
@@ -698,6 +705,8 @@ class FormTicketsup
         if ($user->admin && !$noadmininfo) {
             print info_admin($langs->trans("YouCanChangeValuesForThisListFromDictionarySetup"), 1);
         }
+
+        print ajax_combobox('select'.$htmlname);
     }
 
     /**
@@ -783,7 +792,7 @@ class FormTicketsup
         $model_id=0;
         if (array_key_exists('models_id', $this->param)) {
             $model_id=$this->param["models_id"];
-            $arraydefaultmessage=$this->getEMailTemplate($this->db, $this->param["models"], $user, $outputlangs, $model_id);
+            $arraydefaultmessage=$formmail->getEMailTemplate($this->db, $this->param["models"], $user, $outputlangs, $model_id);
         }
 
         $result = $formmail->fetchAllEMailTemplate($this->param["models"], $user, $outputlangs);
@@ -795,13 +804,11 @@ class FormTicketsup
             $modelmail_array[$line->id]=$line->label;
         }
 
-
-
         print '<table class="border"  width="' . $width . '">';
 
 
         // External users can't send message email
-        if ($user->rights->ticketsup->write && !$user->societe_id) {
+        if ($user->rights->ticketsup->write && !$user->socid) {
             print '<tr><td width="30%"></td><td colspan="2">';
             $checkbox_selected = ( GETPOST('send_email') == "1" ? ' checked' : '');
             print '<input type="checkbox" name="send_email" value="1" id="send_msg_email" '.$checkbox_selected.'/> ';
@@ -832,7 +839,7 @@ class FormTicketsup
                 print "</td></tr>";
             }
 
-            if (!$user->societe_id) {
+            if (! $user->socid) {
                 print '<tr><td width="30%"></td><td>';
                 $checkbox_selected = ( GETPOST('private_message') == "1" ? ' checked' : '');
                 print '<input type="checkbox" name="private_message" value="1" id="private_message" '.$checkbox_selected.'/> ';
@@ -895,7 +902,7 @@ class FormTicketsup
 
         // Intro
         // External users can't send message email
-        if ($user->rights->ticketsup->write && !$user->societe_id) {
+        if ($user->rights->ticketsup->write && !$user->socid) {
             $mail_intro = GETPOST('mail_intro') ? GETPOST('mail_intro') : $conf->global->TICKETS_MESSAGE_MAIL_INTRO;
             print '<tr class="email_line"><td><label for="mail_intro">' . $langs->trans("TicketMessageMailIntro") . '</label>';
 
@@ -913,8 +920,8 @@ class FormTicketsup
 
         // MESSAGE
         $defaultmessage="";
-        if (count($arraydefaultmessage) > 0 && $arraydefaultmessage['content']) {
-            $defaultmessage=$arraydefaultmessage['content'];
+        if (is_array($arraydefaultmessage) && count($arraydefaultmessage) > 0 && $arraydefaultmessage->content) {
+            $defaultmessage=$arraydefaultmessage->content;
         }
         $defaultmessage=str_replace('\n', "\n", $defaultmessage);
 
@@ -938,7 +945,7 @@ class FormTicketsup
         $doleditor = new DolEditor('message', $defaultmessage, '100%', 350, 'dolibarr_details', '', false, true, $conf->global->FCKEDITOR_ENABLE_SOCIETE, ROWS_2, 70);
         $doleditor->Create();
         print '</td><td align="center">';
-        if ($user->rights->ticketsup->write && !$user->societe_id) {
+        if ($user->rights->ticketsup->write && !$user->socid) {
             print $form->textwithpicto('', $langs->trans("TicketMessageHelp"), 1, 'help');
         }
 
@@ -946,7 +953,7 @@ class FormTicketsup
 
         // Signature
         // External users can't send message email
-        if ($user->rights->ticketsup->write && !$user->societe_id) {
+        if ($user->rights->ticketsup->write && !$user->socid) {
             $mail_signature = GETPOST('mail_signature') ? GETPOST('mail_signature') : $conf->global->TICKETS_MESSAGE_MAIL_SIGNATURE;
             print '<tr class="email_line"><td><label for="mail_intro">' . $langs->trans("TicketMessageMailSignature") . '</label>';
 
@@ -1009,84 +1016,5 @@ class FormTicketsup
 
         print "</form>\n";
         print "<!-- End form TICKET -->\n";
-    }
-
-    /**
-     *      Return template of email
-     *      Search into table c_email_templates
-     *
-     *         @param  DoliDB    $db            Database handler
-     *         @param  string    $type_template Get message for key module
-     *      @param  string    $user          Use template public or limited to this user
-     *      @param  Translate $outputlangs   Output lang object
-     *      @param  int       $id            Id template to find
-     *      @param  int       $active        1=Only active template, 0=Only disabled, -1=All
-     *      @return array                        array('topic'=>,'content'=>,..)
-     */
-    private function getEMailTemplate($db, $type_template, $user, $outputlangs, $id = 0, $active = 1)
-    {
-        $ret=array();
-
-        $sql = "SELECT label, topic, content, lang";
-        $sql.= " FROM ".MAIN_DB_PREFIX.'c_email_templates';
-        $sql.= " WHERE type_template='".$db->escape($type_template)."'";
-        $sql.= " AND entity IN (".getEntity("c_email_templates").")";
-        $sql.= " AND (fk_user is NULL or fk_user = 0 or fk_user = ".$user->id.")";
-        if ($active >= 0) {
-            $sql.=" AND active = ".$active;
-        }
-        if (is_object($outputlangs)) {
-            $sql.= " AND (lang = '".$outputlangs->defaultlang."' OR lang IS NULL OR lang = '')";
-        }
-        if (!empty($id)) {
-            $sql.= " AND rowid=".$id;
-        }
-        $sql.= $db->order("lang,label", "ASC");
-        //print $sql;
-
-        $resql = $db->query($sql);
-        if ($resql) {
-            $obj = $db->fetch_object($resql);    // Get first found
-            if ($obj) {
-                $ret['label']=$obj->label;
-                $ret['topic']=$obj->topic;
-                $ret['content']=$obj->content;
-                $ret['lang']=$obj->lang;
-            } else {
-                $defaultmessage='';
-                if ($type_template=='facture_send') {
-                    $defaultmessage=$outputlangs->transnoentities("PredefinedMailContentSendInvoice");
-                } elseif ($type_template=='facture_relance') {
-                    $defaultmessage=$outputlangs->transnoentities("PredefinedMailContentSendInvoiceReminder");
-                } elseif ($type_template=='propal_send') {
-                    $defaultmessage=$outputlangs->transnoentities("PredefinedMailContentSendProposal");
-                } elseif ($type_template=='supplier_proposal_send') {
-                    $defaultmessage=$outputlangs->transnoentities("PredefinedMailContentSendSupplierProposal");
-                } elseif ($type_template=='order_send') {
-                    $defaultmessage=$outputlangs->transnoentities("PredefinedMailContentSendOrder");
-                } elseif ($type_template=='order_supplier_send') {
-                    $defaultmessage=$outputlangs->transnoentities("PredefinedMailContentSendSupplierOrder");
-                } elseif ($type_template=='invoice_supplier_send') {
-                    $defaultmessage=$outputlangs->transnoentities("PredefinedMailContentSendSupplierInvoice");
-                } elseif ($type_template=='shipping_send') {
-                    $defaultmessage=$outputlangs->transnoentities("PredefinedMailContentSendShipping");
-                } elseif ($type_template=='fichinter_send') {
-                    $defaultmessage=$outputlangs->transnoentities("PredefinedMailContentSendFichInter");
-                } elseif ($type_template=='thirdparty') {
-                    $defaultmessage=$outputlangs->transnoentities("PredefinedMailContentThirdparty");
-                }
-
-                $ret['label']='default';
-                $ret['topic']='';
-                $ret['content']=$defaultmessage;
-                $ret['lang']=$outputlangs->defaultlang;
-            }
-
-            $db->free($resql);
-            return $ret;
-        } else {
-            dol_print_error($db);
-            return -1;
-        }
     }
 }

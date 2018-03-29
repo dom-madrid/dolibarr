@@ -79,13 +79,12 @@ class ActionsTicketsup
      *     doActions
      *
      *     @param 	string 		$action 	Action type
+     *     @param	Ticketsup	$object		Object Ticketsup
      *     @return	int						0
      */
-    public function doActions(&$action = '')
+    public function doActions(&$action = '', Ticketsup $object=null)
     {
         global $conf, $user, $langs, $mysoc;
-
-        $this->getInstanceDao();
 
         /*
          * Add file in email form
@@ -93,7 +92,7 @@ class ActionsTicketsup
         if (GETPOST('addfile')) {
             // altairis : allow files from public interface
             if (GETPOST('track_id')) {
-                $res = $this->dao->fetch('', GETPOST('track_id','alpha'));
+            	$res = $object->fetch('', '', GETPOST('track_id','alpha'));
             }
 
             ////if($res > 0)
@@ -101,13 +100,13 @@ class ActionsTicketsup
             include_once DOL_DOCUMENT_ROOT . '/core/lib/files.lib.php';
 
             // Set tmp directory TODO Use a dedicated directory for temp mails files
-            $vardir = $conf->ticketsup->dir_output . (!empty($this->dao->track_id) ?  '/' . dol_sanitizeFileName($this->dao->track_id) : '');
+            $vardir = $conf->ticketsup->dir_output . (!empty($object->track_id) ?  '/' . dol_sanitizeFileName($object->track_id) : '');
             $upload_dir_tmp = $vardir . '/temp';
             if (!dol_is_dir($upload_dir_tmp)) {
                 dol_mkdir($upload_dir_tmp);
             }
             dol_add_file_process($upload_dir_tmp, 0, 0, 'addedfile', dol_print_date(dol_now(), '%Y%m%d%H%M%S') . '-__file__');
-            $action = !empty($this->dao->track_id) ? 'add_message' : 'create_ticket';
+            $action = !empty($object->track_id) ? 'add_message' : 'create_ticket';
             ////}
         }
 
@@ -117,7 +116,7 @@ class ActionsTicketsup
         if (GETPOST('removedfile')) {
             // altairis : allow files from public interface
             if (GETPOST('track_id')) {
-                $res = $this->dao->fetch('', GETPOST('track_id'));
+                $res = $object->fetch('', '', GETPOST('track_id','alpha'));
             }
 
             ////if($res > 0)
@@ -125,12 +124,12 @@ class ActionsTicketsup
             include_once DOL_DOCUMENT_ROOT . '/core/lib/files.lib.php';
 
             // Set tmp directory
-            $vardir = $conf->ticketsup->dir_output . (!empty($this->dao->track_id) ?  '/' . dol_sanitizeFileName($this->dao->track_id) : '');
+            $vardir = $conf->ticketsup->dir_output . (!empty($object->track_id) ?  '/' . dol_sanitizeFileName($object->track_id) : '');
             $upload_dir_tmp = $vardir . '/temp';
 
             // TODO Delete only files that was uploaded from email form
             dol_remove_file_process($_POST['removedfile'], 0);
-            $action = !empty($this->dao->track_id) ? 'add_message' : 'create_ticket';
+            $action = !empty($object->track_id) ? 'add_message' : 'create_ticket';
             ////}
         }
 
@@ -150,32 +149,33 @@ class ActionsTicketsup
             if (!$error) {
                 $this->db->begin();
 
-                $this->dao->track_id = generate_random_id(16);
+                $object->track_id = generate_random_id(16);
 
-                $this->dao->ref = GETPOST("ref", 'alpha');
-                $this->dao->fk_soc = GETPOST("socid", 'int');
-                $this->dao->subject = GETPOST("subject", 'alpha');
-                $this->dao->message = GETPOST("message");
+                $object->ref = GETPOST("ref", 'alpha');
+                $object->fk_soc = GETPOST("socid", 'int') > 0 ? GETPOST("socid", 'int') : 0;
+                $object->subject = GETPOST("subject", 'alpha');
+                $object->message = GETPOST("message");
 
-                $this->dao->type_code = GETPOST("type_code", 'alpha');
-                $this->dao->category_code = GETPOST("category_code", 'alpha');
-                $this->dao->severity_code = GETPOST("severity_code", 'alpha');
-                $notNotifyTiers = GETPOST("not_notify_tiers_at_create", 'alpha');
-                $this->dao->notify_tiers_at_create = empty($notNotifyTiers) ? 1 : 0;
+                $object->type_code = GETPOST("type_code", 'alpha');
+                $object->category_code = GETPOST("category_code", 'alpha');
+                $object->severity_code = GETPOST("severity_code", 'alpha');
+                $notifyTiers = GETPOST("notify_tiers_at_create", 'alpha');
+                $object->notify_tiers_at_create = empty($notifyTiers) ? 0 : 1;
 
                 $extrafields = new ExtraFields($this->db);
-                $extralabels = $extrafields->fetch_name_optionals_label($this->dao->table_element);
-                $ret = $extrafields->setOptionalsFromPost($extralabels, $this->dao);
+                $extralabels = $extrafields->fetch_name_optionals_label($object->table_element);
+                $ret = $extrafields->setOptionalsFromPost($extralabels, $object);
 
-                $id = $this->dao->create($user);
+                $id = $object->create($user);
                 if ($id <= 0) {
                     $error++;
-                    $this->error = $this->dao->error;
-                    $this->errors = $this->dao->errors;
+                    $this->error = $object->error;
+                    $this->errors = $object->errors;
                     $action = 'create_ticket';
                 }
 
-                if (!$error && $id > 0) {
+                if (!$error && $id > 0)
+                {
                     $this->db->commit();
 
                     // File transfer
@@ -186,46 +186,47 @@ class ActionsTicketsup
                     $type_contact = GETPOST("type", 'alpha');
 
                     if ($contactid > 0 && $type_contact) {
-                        $result = $this->dao->add_contact($contactid, GETPOST("type"), 'external');
+                        $result = $object->add_contact($contactid, GETPOST("type"), 'external');
                     }
 
                     // altairis: link ticket to project
-                    if (GETPOST('projectid')) {
-                        $this->dao->setProject(GETPOST('projectid'));
+                    if (GETPOST('projectid') > 0) {
+                        $object->setProject(GETPOST('projectid'));
                     }
 
                     // Auto assign user
                     if ($conf->global->TICKETS_AUTO_ASSIGN_USER_CREATE) {
-                        $result = $this->dao->assignUser($user, $user->id, 1);
-                        $this->dao->add_contact($user->id, "SUPPORTTEC", 'internal');
+                        $result = $object->assignUser($user, $user->id, 1);
+                        $object->add_contact($user->id, "SUPPORTTEC", 'internal');
                     }
 
                     // Auto assign contrat
                     $contractid = 0;
                     if ($conf->global->TICKETS_AUTO_ASSIGN_CONTRACT_CREATE) {
                         $contrat = new Contrat($this->db);
-                        $contrat->socid = $this->dao->fk_soc;
+                        $contrat->socid = $object->fk_soc;
                         $list = $contrat->getListOfContracts();
 
                         if (is_array($list) && !empty($list)) {
                             if (count($list) == 1) {
                                 $contractid = $list[0]->id;
-                                $this->dao->setContract($contractid);
+                                $object->setContract($contractid);
                             } else {
                             }
                         }
                     }
 
                     // Auto create fiche intervention
-                    if ($conf->global->TICKETS_AUTO_CREATE_FICHINTER_CREATE) {
+                    if ($conf->global->TICKETS_AUTO_CREATE_FICHINTER_CREATE)
+                    {
                         $fichinter = new Fichinter($this->db);
-                        $fichinter->socid = $this->dao->fk_soc;
+                        $fichinter->socid = $object->fk_soc;
                         $fichinter->fk_project = GETPOST('projectid', 'int');
                         $fichinter->fk_contrat = $contractid;
                         $fichinter->author = $user->id;
                         $fichinter->modelpdf = 'soleil';
-                        $fichinter->origin = $this->dao->element;
-                        $fichinter->origin_id = $this->dao->id;
+                        $fichinter->origin = $object->element;
+                        $fichinter->origin_id = $object->id;
 
                         // Extrafields
                         $extrafields = new ExtraFields($this->db);
@@ -242,7 +243,7 @@ class ActionsTicketsup
                     if (!empty($backtopage)) {
                         $url = $backtopage;
                     } else {
-                        $url = 'card.php?track_id=' . $this->dao->track_id;
+                        $url = 'card.php?track_id=' . $object->track_id;
                     }
 
                     header("Location: " . $url);
@@ -259,7 +260,7 @@ class ActionsTicketsup
         if ($action == 'edit' && $user->rights->ticketsup->write) {
             $error = 0;
 
-            if ($this->dao->fetch(GETPOST('id')) < 0) {
+            if ($object->fetch(GETPOST('id')) < 0) {
                 $error++;
                 array_push($this->errors, $langs->trans("ErrorTicketIsNotValid"));
                 $_GET["action"] = $_POST["action"] = '';
@@ -269,7 +270,7 @@ class ActionsTicketsup
         if (GETPOST('update') && GETPOST('id') && $user->rights->ticketsup->write) {
             $error = 0;
 
-            $ret = $this->dao->fetch(GETPOST('id'));
+            $ret = $object->fetch(GETPOST('id'));
             if ($ret < 0) {
                 $error++;
                 array_push($this->errors, $langs->trans("ErrorTicketIsNotValid"));
@@ -287,15 +288,15 @@ class ActionsTicketsup
             if (!$error) {
                 $this->db->begin();
 
-                $this->dao->label = GETPOST("label");
-                $this->dao->description = GETPOST("description");
+                $object->label = GETPOST("label");
+                $object->description = GETPOST("description");
 
                 //...
-                $ret = $this->dao->update(GETPOST('id'), $user);
+                $ret = $object->update(GETPOST('id'), $user);
                 if ($ret <= 0) {
                     $error++;
-                    $this->errors = $this->dao->error;
-                    $this->errors = $this->dao->errors;
+                    $this->errors = $object->error;
+                    $this->errors = $object->errors;
                     $action = 'edit';
                 }
 
@@ -308,91 +309,98 @@ class ActionsTicketsup
         }
 
         if ($action == "mark_ticket_read" && $user->rights->ticketsup->write) {
-            $this->dao->fetch('', GETPOST("track_id"));
+            $object->fetch('', '', GETPOST("track_id",'alpha'));
 
-            if ($this->dao->markAsRead($user) > 0) {
+            if ($object->markAsRead($user) > 0) {
                 // Log action in ticket logs table
                 $log_action = $langs->trans('TicketLogMesgReadBy', $user->getFullName($langs));
-                $ret = $this->dao->createTicketLog($user, $log_action);
+                $ret = $object->createTicketLog($user, $log_action);
                 if ($ret > 0) {
                     setEventMessages($langs->trans('TicketMarkedAsRead'), null, 'mesgs');
                 } else {
                     setEventMessages($langs->trans('TicketMarkedAsReadButLogActionNotSaved'), null, 'errors');
                 }
-                header("Location: card.php?track_id=" . $this->dao->track_id . "&action=view");
+                header("Location: card.php?track_id=" . $object->track_id . "&action=view");
                 exit;
             } else {
-                array_push($this->errors, $this->dao->error);
+                array_push($this->errors, $object->error);
             }
             $action = 'view';
         }
 
-        if ($action == "assign_user" && GETPOST('btn_assign_user') && $user->rights->ticketsup->write) {
-            $this->dao->fetch('', GETPOST("track_id"));
+        if ($action == "assign_user" && GETPOST('btn_assign_user','aplha') && $user->rights->ticketsup->write) {
+            $object->fetch('', '', GETPOST("track_id",'alpha'));
+            $useroriginassign = $object->fk_user_assign;
+            $usertoassign = GETPOST('fk_user_assign','int');
 
-            $useroriginassign = $this->dao->fk_user_assign;
-            $usertoassign = GETPOST('fk_user_assign');
-            if (!$usertoassign) {
+            /*if (! ($usertoassign > 0)) {
                 $error++;
-                array_push($this->errors, $langs->trans("ErrorFieldRequired", $langs->transnoentities("UserAssignedTo")));
+                array_push($this->errors, $langs->trans("ErrorFieldRequired", $langs->transnoentities("AssignedTo")));
                 $action = 'view';
+            }*/
+
+            if (!$error)
+            {
+                $ret = $object->assignUser($user, $usertoassign);
+                if ($ret < 0) $error++;
             }
 
-            if (!$error) {
-                $ret = $this->dao->assignUser($user, $usertoassign);
-
-                if ($ret) {
-                    // Si déjà un user assigné on le supprime des contacts
+            if (! $error)	// Update list of contacts
+            {
+            		// Si déjà un user assigné on le supprime des contacts
                     if ($useroriginassign > 0) {
-                        $internal_contacts = $this->dao->listeContact(-1, 'internal');
+                        $internal_contacts = $object->listeContact(-1, 'internal');
 
                         foreach ($internal_contacts as $key => $contact) {
                             if ($contact['code'] == "SUPPORTTEC" && $contact['id'] == $useroriginassign) {
                             }
                             {
                                 //print "user à effacer : ".$useroriginassign;
-                                $this->dao->delete_contact($contact['rowid']);
+                                $object->delete_contact($contact['rowid']);
                             }
                         }
                     }
-                    $this->dao->add_contact($usertoassign, "SUPPORTTEC", 'internal', $notrigger = 0);
-                }
 
+                    if ($usertoassign > 0) $object->add_contact($usertoassign, "SUPPORTTEC", 'internal', $notrigger = 0);
+            }
+
+            if (! $error)
+            {
                 // Log action in ticket logs table
-                $this->dao->fetch_user($usertoassign);
-                $log_action = $langs->trans('TicketLogAssignedTo', $this->dao->user->getFullName($langs));
-                $ret = $this->dao->createTicketLog($user, $log_action);
+                $object->fetch_user($usertoassign);
+                $log_action = $langs->trans('TicketLogAssignedTo', $object->user->getFullName($langs));
+                $ret = $object->createTicketLog($user, $log_action);
                 if ($ret > 0) {
                     setEventMessages($langs->trans('TicketAssigned'), null, 'mesgs');
                 } else {
                     setEventMessages($langs->trans('TicketAssignedButLogActionNotSaved'), null, 'errors');
                 }
-                header("Location: card.php?track_id=" . $this->dao->track_id . "&action=view");
+                header("Location: card.php?track_id=" . $object->track_id . "&action=view");
                 exit;
             } else {
-                array_push($this->errors, $this->dao->error);
+                array_push($this->errors, $object->error);
             }
             $action = 'view';
         }
 
         if ($action == "change_property" && GETPOST('btn_update_ticket_prop') && $user->rights->ticketsup->write) {
-            $this->fetch('', GETPOST('track_id'));
+            $this->fetch('', '', GETPOST('track_id','alpha'));
 
             $fieldtomodify = GETPOST('property') . '_code';
             $fieldtomodify_label = GETPOST('property') . '_label';
 
-            $oldvalue_code = $this->dao->$fieldtomodify;
-            $newvalue_code = $this->dao->getValueFrom('c_ticketsup_' . GETPOST('property'), GETPOST('update_value'), 'code');
+            $oldvalue_code = $object->$fieldtomodify;
+            $newvalue_code = $object->getValueFrom('c_ticketsup_' . GETPOST('property'), GETPOST('update_value'), 'code');
 
-            $oldvalue_label = $this->dao->$fieldtomodify_label;
-            $newvalue_label = $this->dao->getValueFrom('c_ticketsup_' . GETPOST('property'), GETPOST('update_value'), 'label');
+            $oldvalue_label = $object->$fieldtomodify_label;
+            $newvalue_label = $object->getValueFrom('c_ticketsup_' . GETPOST('property'), GETPOST('update_value'), 'label');
 
-            $this->dao->$fieldtomodify = $newvalue_code;
+            $object->$fieldtomodify = $newvalue_code;
 
-            $ret = $this->dao->update($user);
+            $ret = $object->update($user);
             if ($ret > 0) {
                 $log_action = $langs->trans('TicketLogPropertyChanged', $oldvalue_label, $newvalue_label);
-                $ret = $this->dao->createTicketLog($user, $log_action);
+                $ret = $object->createTicketLog($user, $log_action);
                 if ($ret > 0) {
                     setEventMessages($langs->trans('TicketUpdated'), null, 'mesgs');
                 }
@@ -406,13 +414,13 @@ class ActionsTicketsup
                 if (!empty($backtopage)) {
                     $url = $backtopage;
                 } else {
-                    $url = 'card.php?action=view&track_id=' . $this->dao->track_id;
+                    $url = 'card.php?action=view&track_id=' . $object->track_id;
                 }
 
                 header("Location: " . $url);
                 exit;
             } else {
-                setEventMessages($this->dao->error, null, 'errors');
+                setEventMessages($object->error, null, 'errors');
                 $action = 'add_message';
             }
         }
@@ -422,11 +430,11 @@ class ActionsTicketsup
         }
 
         if ($action == "confirm_close" && GETPOST('confirm', 'alpha') == 'yes' && $user->rights->ticketsup->write) {
-            $this->fetch(GETPOST('id', 'int'), GETPOST('track_id', 'alpha'));
-            if ($this->dao->close()) {
+            $this->fetch(GETPOST('id', 'int'), '', GETPOST('track_id', 'alpha'));
+            if ($object->close()) {
                 // Log action in ticket logs table
                 $log_action = $langs->trans('TicketLogClosedBy', $user->getFullName($langs));
-                $ret = $this->dao->createTicketLog($user, $log_action);
+                $ret = $object->createTicketLog($user, $log_action);
                 if ($ret > 0) {
                     setEventMessages('<div class="confirm">' . $langs->trans('TicketMarkedAsClosed') . '</div>');
                 } else {
@@ -441,11 +449,11 @@ class ActionsTicketsup
         }
 
         if ($action == "confirm_public_close" && GETPOST('confirm', 'alpha') == 'yes') {
-            $this->fetch(GETPOST('id', 'int'), GETPOST('track_id', 'alpha'));
-            if (($_SESSION['email_customer'] == $this->dao->origin_email || $_SESSION['email_customer'] == $this->dao->thirdparty->email) && $this->dao->close()) {
+            $this->fetch(GETPOST('id', 'int'), '', GETPOST('track_id', 'alpha'));
+            if (($_SESSION['email_customer'] == $object->origin_email || $_SESSION['email_customer'] == $object->thirdparty->email) && $object->close()) {
                 // Log action in ticket logs table
                 $log_action = $langs->trans('TicketLogClosedBy', $_SESSION['email_customer']);
-                $ret = $this->dao->createTicketLog($user, $log_action);
+                $ret = $object->createTicketLog($user, $log_action);
                 if ($ret > 0) {
                     setEventMessages('<div class="confirm">' . $langs->trans('TicketMarkedAsClosed') . '</div>', null, 'mesgs');
                 } else {
@@ -460,10 +468,10 @@ class ActionsTicketsup
         }
 
         if ($action == 'confirm_delete_ticket' && GETPOST('confirm', 'alpha') == "yes" && $user->rights->ticketsup->delete) {
-            if ($this->fetch(GETPOST('id', 'int'), GETPOST('track_id', 'alpha')) >= 0) {
-                if ($this->dao->delete($user) > 0) {
+            if ($this->fetch(GETPOST('id', 'int'), '', GETPOST('track_id', 'alpha')) >= 0) {
+                if ($object->delete($user) > 0) {
                     setEventMessages('<div class="confirm">' . $langs->trans('TicketDeletedSuccess') . '</div>', null, 'mesgs');
-                    Header("Location: index.php");
+                    Header("Location: ".DOL_URL_ROOT."/ticketsup/list.php");
                     exit;
                 } else {
                     $langs->load("errors");
@@ -475,8 +483,8 @@ class ActionsTicketsup
 
         // Set parent company
         if ($action == 'set_thirdparty' && $user->rights->societe->creer) {
-            if ($this->fetch(GETPOST('id', 'int'), GETPOST('track_id', 'alpha')) >= 0) {
-                $result = $this->dao->setCustomer(GETPOST('editcustomer', 'int'));
+            if ($this->fetch(GETPOST('id', 'int'), '', GETPOST('track_id', 'alpha')) >= 0) {
+                $result = $object->setCustomer(GETPOST('editcustomer', 'int'));
                 $url = 'card.php?action=view&track_id=' . GETPOST('track_id', 'alpha');
                 header("Location: " . $url);
                 exit();
@@ -484,12 +492,12 @@ class ActionsTicketsup
         }
 
         if ($action == 'set_progression' && $user->rights->ticketsup->write) {
-            if ($this->fetch(GETPOST('id', 'int'), GETPOST('track_id', 'alpha')) >= 0) {
-                $result = $this->dao->setProgression(GETPOST('progress'));
+            if ($this->fetch(GETPOST('id', 'int'), '', GETPOST('track_id', 'alpha')) >= 0) {
+                $result = $object->setProgression(GETPOST('progress'));
                 // Log action in ticket logs table
                 $log_action = $langs->trans('TicketLogProgressSetTo', GETPOST('progress'));
-                $ret = $this->dao->createTicketLog($user, $log_action);
-                $url = 'card.php?action=view&track_id=' . $this->dao->track_id;
+                $ret = $object->createTicketLog($user, $log_action);
+                $url = 'card.php?action=view&track_id=' . $object->track_id;
                 header("Location: " . $url);
                 exit();
             }
@@ -498,34 +506,34 @@ class ActionsTicketsup
         if ($action == 'setsubject') {
             if ($this->fetch(GETPOST('id', 'int'))) {
                 if ($action == 'setsubject') {
-                    $this->dao->subject = trim(GETPOST('subject', 'alpha'));
+                    $object->subject = trim(GETPOST('subject', 'alpha'));
                 }
 
-                if ($action == 'setsubject' && empty($this->dao->subject)) {
+                if ($action == 'setsubject' && empty($object->subject)) {
                     $mesg .= ($mesg ? '<br>' : '') . $langs->trans("ErrorFieldRequired", $langs->transnoentities("Subject"));
                 }
 
                 if (!$mesg) {
-                    if ($this->dao->update($user) >= 0) {
-                        header("Location: " . $_SERVER['PHP_SELF'] . "?track_id=" . $this->dao->track_id);
+                    if ($object->update($user) >= 0) {
+                        header("Location: " . $_SERVER['PHP_SELF'] . "?track_id=" . $object->track_id);
                         exit;
                     }
-                    $mesg = $this->dao->error;
+                    $mesg = $object->error;
                 }
             }
         }
 
         if ($action == "set_extrafields" && GETPOST('btn_edit_extrafields') && $user->rights->ticketsup->write && !GETPOST('cancel')) {
-            $res = $this->fetch('', GETPOST('track_id'));
+            $res = $this->fetch('', '', GETPOST('track_id','alpha'));
 
             $extrafields = new ExtraFields($this->db);
-            $extralabels = $extrafields->fetch_name_optionals_label($this->dao->table_element);
-            $ret = $extrafields->setOptionalsFromPost($extralabels, $this->dao);
+            $extralabels = $extrafields->fetch_name_optionals_label($object->table_element);
+            $ret = $extrafields->setOptionalsFromPost($extralabels, $object);
 
-            $ret = $this->dao->update($user);
+            $ret = $object->update($user);
             if ($ret > 0) {
                 setEventMessages($langs->trans('TicketUpdated'), null, 'mesgs');
-                $url = 'card.php?action=view&track_id=' . $this->dao->track_id;
+                $url = 'card.php?action=view&track_id=' . $object->track_id;
                 header("Location: " . $url);
                 exit();
             }
@@ -533,15 +541,15 @@ class ActionsTicketsup
             $action = 'view';
         } // Reopen ticket
         elseif ($action == 'confirm_reopen' && $user->rights->ticketsup->manage && !GETPOST('cancel')) {
-            if ($this->fetch(GETPOST('id', 'int'), GETPOST('track_id', 'alpha')) >= 0) {
+            if ($this->fetch(GETPOST('id', 'int'), '', GETPOST('track_id', 'alpha')) >= 0) {
                 // prevent browser refresh from reopening ticket several times
-                if ($this->dao->fk_statut == 8) {
-                    $res = $this->dao->setStatut(4);
+                if ($object->fk_statut == 8) {
+                    $res = $object->setStatut(4);
                     if ($res) {
                         // Log action in ticket logs table
                         $log_action = $langs->trans('TicketLogReopen');
-                        $ret = $this->dao->createTicketLog($user, $log_action);
-                        $url = 'card.php?action=view&track_id=' . $this->dao->track_id;
+                        $ret = $object->createTicketLog($user, $log_action);
+                        $url = 'card.php?action=view&track_id=' . $object->track_id;
                         header("Location: " . $url);
                         exit();
                     }
@@ -549,37 +557,37 @@ class ActionsTicketsup
             }
         } // Categorisation dans projet
         elseif ($action == 'classin' && $user->rights->ticketsup->write) {
-            if ($this->fetch(GETPOST('id', 'int'), GETPOST('track_id', 'alpha')) >= 0) {
-                $this->dao->setProject(GETPOST('projectid'));
-                $url = 'card.php?action=view&track_id=' . $this->dao->track_id;
+            if ($this->fetch(GETPOST('id', 'int'), '', GETPOST('track_id', 'alpha')) >= 0) {
+                $object->setProject(GETPOST('projectid'));
+                $url = 'card.php?action=view&track_id=' . $object->track_id;
                 header("Location: " . $url);
                 exit();
             }
         } // Categorisation dans contrat
         elseif ($action == 'setcontract' && $user->rights->ticketsup->write) {
-            if ($this->fetch(GETPOST('id', 'int'), GETPOST('track_id', 'alpha')) >= 0) {
-                $this->dao->setContract(GETPOST('contractid'));
-                $url = 'card.php?action=view&track_id=' . $this->dao->track_id;
+            if ($this->fetch(GETPOST('id', 'int'), '', GETPOST('track_id', 'alpha')) >= 0) {
+                $object->setContract(GETPOST('contractid'));
+                $url = 'card.php?action=view&track_id=' . $object->track_id;
                 header("Location: " . $url);
                 exit();
             }
         } elseif ($action == "set_message" && $user->rights->ticketsup->manage) {
             // altairis: manage cancel button
             if (!GETPOST('cancel')) {
-                $this->fetch('', GETPOST('track_id'));
-                $oldvalue_message = $this->dao->message;
+                $this->fetch('', '', GETPOST('track_id','alpha'));
+                $oldvalue_message = $object->message;
                 $fieldtomodify = GETPOST('message_initial');
 
-                $this->dao->message = $fieldtomodify;
-                $ret = $this->dao->update($user);
+                $object->message = $fieldtomodify;
+                $ret = $object->update($user);
                 if ($ret > 0) {
                     $log_action = $langs->trans('TicketInitialMessageModified') . " \n";
                     // include the Diff class
                     dol_include_once('/ticketsup/class/utils_diff.class.php');
                     // output the result of comparing two files as plain text
-                    $log_action .= Diff::toString(Diff::compare(strip_tags($oldvalue_message), strip_tags($this->dao->message)));
+                    $log_action .= Diff::toString(Diff::compare(strip_tags($oldvalue_message), strip_tags($object->message)));
 
-                    $ret = $this->dao->createTicketLog($user, $log_action);
+                    $ret = $object->createTicketLog($user, $log_action);
                     if ($ret > 0) {
                         setEventMessages($langs->trans('TicketMessageSuccesfullyUpdated'), null, 'mesgs');
                     }
@@ -591,13 +599,13 @@ class ActionsTicketsup
         elseif ($action == 'confirm_set_status' && $user->rights->ticketsup->write && !GETPOST('cancel')) {
             if ($this->fetch(GETPOST('id', 'int'), GETPOST('track_id', 'alpha')) >= 0) {
                 $new_status = GETPOST('new_status', 'int');
-                $old_status = $this->dao->fk_statut;
-                $res = $this->dao->setStatut($new_status);
+                $old_status = $object->fk_statut;
+                $res = $object->setStatut($new_status);
                 if ($res) {
                     // Log action in ticket logs table
-                    $log_action = $langs->trans('TicketLogStatusChanged', $langs->transnoentities($this->dao->statuts_short[$old_status]), $langs->transnoentities($this->dao->statuts_short[$new_status]));
-                    $ret = $this->dao->createTicketLog($user, $log_action);
-                    $url = 'card.php?action=view&track_id=' . $this->dao->track_id;
+                    $log_action = $langs->trans('TicketLogStatusChanged', $langs->transnoentities($object->statuts_short[$old_status]), $langs->transnoentities($object->statuts_short[$new_status]));
+                    $ret = $object->createTicketLog($user, $log_action);
+                    $url = 'card.php?action=view&track_id=' . $object->track_id;
                     header("Location: " . $url);
                     exit();
                 }
@@ -624,9 +632,11 @@ class ActionsTicketsup
         $contactstatic = new Contact($this->db);
 
         $error = 0;
-        $ret = $this->dao->fetch('', GETPOST('track_id'));
-        $this->dao->socid = $this->dao->fk_soc;
-        $this->dao->fetch_thirdparty();
+
+        $object = new Ticketsup($this->db);
+        $ret = $object->fetch('', '', GETPOST('track_id','alpha'));
+        $object->socid = $object->fk_soc;
+        $object->fetch_thirdparty();
         if ($ret < 0) {
             $error++;
             array_push($this->errors, $langs->trans("ErrorTicketIsNotValid"));
@@ -640,15 +650,15 @@ class ActionsTicketsup
         }
 
         if (!$error) {
-            $this->dao->message = GETPOST("message");
-            $this->dao->private = GETPOST("private_message");
+            $object->message = GETPOST("message");
+            $object->private = GETPOST("private_message");
             $send_email = GETPOST('send_email', 'int');
 
-            $id = $this->dao->createTicketMessage($user);
+            $id = $object->createTicketMessage($user);
             if ($id <= 0) {
                 $error++;
-                $this->errors = $this->dao->error;
-                $this->errors = $this->dao->errors;
+                $this->errors = $object->error;
+                $this->errors = $object->errors;
                 $action = 'add_message';
             }
 
@@ -660,14 +670,14 @@ class ActionsTicketsup
                  */
                 if ($send_email > 0) {
                     // Retrieve internal contact datas
-                    $internal_contacts = $this->dao->getInfosTicketInternalContact();
+                    $internal_contacts = $object->getInfosTicketInternalContact();
                     $sendto = array();
                     if (is_array($internal_contacts) && count($internal_contacts) > 0) {
                         // altairis: set default subject
                         $label_title = empty($conf->global->MAIN_APPLICATION_TITLE) ? $mysoc->name : $conf->global->MAIN_APPLICATION_TITLE;
-                        $subject = GETPOST('subject') ? GETPOST('subject') : '[' . $label_title . '- ticket #' . $this->dao->track_id . '] ' . $langs->trans('TicketNewMessage');
+                        $subject = GETPOST('subject') ? GETPOST('subject') : '[' . $label_title . '- ticket #' . $object->track_id . '] ' . $langs->trans('TicketNewMessage');
 
-                        $message_intro = $langs->trans('TicketNotificationEmailBody', "#" . $this->dao->id);
+                        $message_intro = $langs->trans('TicketNotificationEmailBody', "#" . $object->id);
                         $message_signature = GETPOST('mail_signature') ? GETPOST('mail_signature') : $conf->global->TICKETS_MESSAGE_MAIL_SIGNATURE;
 
                         $message = $langs->trans('TicketMessageMailIntroText');
@@ -677,9 +687,9 @@ class ActionsTicketsup
                         //  Coordonnées client
                         $message .= "\n\n";
                         $message .= "==============================================\n";
-                        $message .= !empty($this->dao->thirdparty->name) ? $langs->trans('Thirdparty') . " : " . $this->dao->thirdparty->name : '';
-                        $message .= !empty($this->dao->thirdparty->town) ? "\n" . $langs->trans('Town') . " : " . $this->dao->thirdparty->town : '';
-                        $message .= !empty($this->dao->thirdparty->phone) ? "\n" . $langs->trans('Phone') . " : " . $this->dao->thirdparty->phone : '';
+                        $message .= !empty($object->thirdparty->name) ? $langs->trans('Thirdparty') . " : " . $object->thirdparty->name : '';
+                        $message .= !empty($object->thirdparty->town) ? "\n" . $langs->trans('Town') . " : " . $object->thirdparty->town : '';
+                        $message .= !empty($object->thirdparty->phone) ? "\n" . $langs->trans('Phone') . " : " . $object->thirdparty->phone : '';
 
                         // Build array to display recipient list
                         foreach ($internal_contacts as $key => $info_sendto) {
@@ -698,10 +708,10 @@ class ActionsTicketsup
                         }
                         $message .= "\n";
                         // URL ticket
-                        $url_internal_ticket = dol_buildpath('/ticketsup/card.php', 2) . '?track_id=' . $this->dao->track_id;
+                        $url_internal_ticket = dol_buildpath('/ticketsup/card.php', 2) . '?track_id=' . $object->track_id;
 
                         // altairis: make html link on url
-                        $message .= "\n" . $langs->trans('TicketNotificationEmailBodyInfosTrackUrlinternal') . ' : ' . '<a href="' . $url_internal_ticket . '">' . $this->dao->track_id . '</a>' . "\n";
+                        $message .= "\n" . $langs->trans('TicketNotificationEmailBodyInfosTrackUrlinternal') . ' : ' . '<a href="' . $url_internal_ticket . '">' . $object->track_id . '</a>' . "\n";
 
                         // Add global email address recipient
                         // altairis: use new TICKETS_NOTIFICATION_EMAIL_TO configuration variable
@@ -718,18 +728,18 @@ class ActionsTicketsup
                     /*
                      * Email for externals users if not private
                      */
-                    if (empty($this->dao->private)) {
+                    if (empty($object->private)) {
                         // Retrieve email of all contacts (external)
-                        $external_contacts = $this->dao->getInfosTicketExternalContact();
+                        $external_contacts = $object->getInfosTicketExternalContact();
 
                         // If no contact, get email from thirdparty
                         if (is_array($external_contacts) && count($external_contacts) === 0) {
-                            if (!empty($this->dao->fk_soc)) {
-                                $this->dao->fetch_thirdparty($this->dao->fk_soc);
-                                $array_company = array(array('firstname' => '', 'lastname' => $this->dao->thirdparty->name, 'email' => $this->dao->thirdparty->email, 'libelle' => $langs->transnoentities('Customer'), 'socid' => $this->dao->thirdparty->id));
+                            if (!empty($object->fk_soc)) {
+                                $object->fetch_thirdparty($object->fk_soc);
+                                $array_company = array(array('firstname' => '', 'lastname' => $object->thirdparty->name, 'email' => $object->thirdparty->email, 'libelle' => $langs->transnoentities('Customer'), 'socid' => $object->thirdparty->id));
                                 $external_contacts = array_merge($external_contacts, $array_company);
-                            } elseif (empty($this->dao->fk_soc) && !empty($this->dao->origin_email)) {
-                                $array_external = array(array('firstname' => '', 'lastname' => $this->dao->origin_email, 'email' => $this->dao->thirdparty->email, 'libelle' => $langs->transnoentities('Customer'), 'socid' => $this->dao->thirdparty->id));
+                            } elseif (empty($object->fk_soc) && !empty($object->origin_email)) {
+                                $array_external = array(array('firstname' => '', 'lastname' => $object->origin_email, 'email' => $object->thirdparty->email, 'libelle' => $langs->transnoentities('Customer'), 'socid' => $object->thirdparty->id));
                                 $external_contacts = array_merge($external_contacts, $array_external);
                             }
                         }
@@ -738,7 +748,7 @@ class ActionsTicketsup
                         if (is_array($external_contacts) && count($external_contacts) > 0) {
                             // altairis: get default subject for email to external contacts
                             $label_title = empty($conf->global->MAIN_APPLICATION_TITLE) ? $mysoc->name : $conf->global->MAIN_APPLICATION_TITLE;
-                            $subject = GETPOST('subject') ? GETPOST('subject') : '[' . $label_title . '- ticket #' . $this->dao->track_id . '] ' . $langs->trans('TicketNewMessage');
+                            $subject = GETPOST('subject') ? GETPOST('subject') : '[' . $label_title . '- ticket #' . $object->track_id . '] ' . $langs->trans('TicketNewMessage');
 
                             $message_intro = GETPOST('mail_intro') ? GETPOST('mail_intro') : $conf->global->TICKETS_MESSAGE_MAIL_INTRO;
                             $message_signature = GETPOST('mail_signature') ? GETPOST('mail_signature') : $conf->global->TICKETS_MESSAGE_MAIL_SIGNATURE;
@@ -753,7 +763,7 @@ class ActionsTicketsup
                                     continue;
                                 }
 
-                                if ($info_sendto['email'] != '' && $info_sendto['email'] != $this->dao->origin_email) {
+                                if ($info_sendto['email'] != '' && $info_sendto['email'] != $object->origin_email) {
                                     if(!empty($info_sendto['email'])) $sendto[] = trim($info_sendto['firstname'] . " " . $info_sendto['lastname']) . " <" . $info_sendto['email'] . ">";
 
                                     $recipient = dolGetFirstLastname($info_sendto['firstname'], $info_sendto['lastname'], '-1') . ' (' . strtolower($info_sendto['libelle']) . ')';
@@ -768,8 +778,8 @@ class ActionsTicketsup
                             			dol_buildpath('/ticketsup/public/view.php', 2)
                             		) :
                             		dol_buildpath('/ticketsup/card.php', 2)
-                            	) . '?track_id=' . $this->dao->track_id;
-                            $message .= "\n" . $langs->trans('TicketNewEmailBodyInfosTrackUrlCustomer') . ' : ' . '<a href="' . $url_public_ticket . '">' . $this->dao->track_id . '</a>' . "\n";
+                            	) . '?track_id=' . $object->track_id;
+                            $message .= "\n" . $langs->trans('TicketNewEmailBodyInfosTrackUrlCustomer') . ' : ' . '<a href="' . $url_public_ticket . '">' . $object->track_id . '</a>' . "\n";
 
                             // Build final message
                             $message = $message_intro . $message;
@@ -777,14 +787,14 @@ class ActionsTicketsup
                             // Add signature
                             $message .= '<br>' . $message_signature;
 
-                            if (!empty($this->dao->origin_email)) {
-                                $sendto[] = $this->dao->origin_email;
+                            if (!empty($object->origin_email)) {
+                                $sendto[] = $object->origin_email;
                             }
 
-                            if ($this->dao->fk_soc > 0 && ! in_array($this->dao->origin_email, $sendto)) {
-	                            $this->dao->socid = $this->dao->fk_soc;
-	                            $this->dao->fetch_thirdparty();
-                                if(!empty($this->dao->thirdparty->email)) $sendto[] = $this->dao->thirdparty->email;
+                            if ($object->fk_soc > 0 && ! in_array($object->origin_email, $sendto)) {
+	                            $object->socid = $object->fk_soc;
+	                            $object->fetch_thirdparty();
+                                if(!empty($object->thirdparty->email)) $sendto[] = $object->thirdparty->email;
                             }
 
                             // altairis: Add global email address reciepient
@@ -803,18 +813,18 @@ class ActionsTicketsup
                 $this->copyFilesForTicket();
 
                 // Set status to "answered" if not set yet, only for internal users
-                if ($this->dao->fk_statut < 3 && !$user->societe_id) {
-                    $this->dao->setStatut(3);
+                if ($object->fk_statut < 3 && !$user->societe_id) {
+                    $object->setStatut(3);
                 }
 
                 return 1;
             } else {
+                setEventMessages($object->error, $object->errors, 'errors');
                 return -1;
-                setEventMessages($this->dao->error, $this->dao->errors, 'errors');
             }
         } else {
-            return -1;
             setEventMessages($this->error, $this->errors, 'errors');
+            return -1;
         }
     }
 
@@ -830,9 +840,9 @@ class ActionsTicketsup
         global $mysoc, $conf, $langs;
 
         $error = 0;
-        $ret = $this->dao->fetch('', GETPOST('track_id'));
-        $this->dao->socid = $this->dao->fk_soc;
-        $this->dao->fetch_thirdparty();
+        $ret = $object->fetch('', '', GETPOST('track_id','alpha'));
+        $object->socid = $object->fk_soc;
+        $object->fetch_thirdparty();
         if ($ret < 0) {
             $error++;
             array_push($this->errors, $langs->trans("ErrorTicketIsNotValid"));
@@ -846,12 +856,12 @@ class ActionsTicketsup
         }
 
         if (!$error) {
-            $this->dao->message = GETPOST("message");
-            $id = $this->dao->createTicketMessage($user);
+            $object->message = GETPOST("message");
+            $id = $object->createTicketMessage($user);
             if ($id <= 0) {
                 $error++;
-                $this->errors = $this->dao->error;
-                $this->errors = $this->dao->errors;
+                $this->errors = $object->error;
+                $this->errors = $object->errors;
                 $action = 'add_message';
             }
 
@@ -859,24 +869,24 @@ class ActionsTicketsup
                 setEventMessages($langs->trans('TicketMessageSuccessfullyAdded'), null, 'mesgs');
 
                 // Retrieve internal contact datas
-                $internal_contacts = $this->dao->getInfosTicketInternalContact();
+                $internal_contacts = $object->getInfosTicketInternalContact();
                 $sendto = array();
                 if (is_array($internal_contacts) && count($internal_contacts) > 0) {
-                    $subject = '[' . $mysoc->name . '- ticket #' . $this->dao->track_id . '] ' . $langs->trans('TicketNewMessage');
+                    $subject = '[' . $mysoc->name . '- ticket #' . $object->track_id . '] ' . $langs->trans('TicketNewMessage');
 
-                    $message = $langs->trans('TicketMessageMailIntroAutoNewPublicMessage', $this->dao->subject);
+                    $message = $langs->trans('TicketMessageMailIntroAutoNewPublicMessage', $object->subject);
                     $message .= "\n";
                     $message .= GETPOST('message');
                     $message .= "\n";
 
                     //  Coordonnées client
-                    if ($this->dao->thirdparty->id > 0) {
+                    if ($object->thirdparty->id > 0) {
                         $message .= "\n\n";
                         $message .= "==============================================\n";
-                        $message .= $langs->trans('Thirparty') . " : " . $this->dao->thirdparty->name;
-                        $message .= !empty($this->dao->thirdparty->town) ? $langs->trans('Town') . " : " . $this->dao->thirdparty->town : '';
+                        $message .= $langs->trans('Thirparty') . " : " . $object->thirdparty->name;
+                        $message .= !empty($object->thirdparty->town) ? $langs->trans('Town') . " : " . $object->thirdparty->town : '';
                         $message .= "\n";
-                        $message .= !empty($this->dao->thirdparty->phone) ? $langs->trans('Phone') . " : " . $this->dao->thirdparty->phone : '';
+                        $message .= !empty($object->thirdparty->phone) ? $langs->trans('Phone') . " : " . $object->thirdparty->phone : '';
                         $message .= "\n";
                     }
 
@@ -893,7 +903,7 @@ class ActionsTicketsup
                     }
 
                     // URL ticket
-                    $url_internal_ticket = dol_buildpath('/ticketsup/card.php', 2) . '?track_id=' . $this->dao->track_id;
+                    $url_internal_ticket = dol_buildpath('/ticketsup/card.php', 2) . '?track_id=' . $object->track_id;
                     $message .= "\n" . $langs->trans('TicketNotificationEmailBodyInfosTrackUrlinternal') . ' : ' . $url_internal_ticket . "\n";
 
                     $message .= "\n\n";
@@ -913,12 +923,12 @@ class ActionsTicketsup
                  */
 
                 // Retrieve email of all contacts external
-                $external_contacts = $this->dao->getInfosTicketExternalContact();
+                $external_contacts = $object->getInfosTicketExternalContact();
                 $sendto = array();
                 if (is_array($external_contacts) && count($external_contacts) > 0) {
-                    $subject = '[' . $mysoc->name . '- ticket #' . $this->dao->track_id . '] ' . $langs->trans('TicketNewMessage');
+                    $subject = '[' . $mysoc->name . '- ticket #' . $object->track_id . '] ' . $langs->trans('TicketNewMessage');
 
-                    $message = $langs->trans('TicketMessageMailIntroAutoNewPublicMessage', $this->dao->subject);
+                    $message = $langs->trans('TicketMessageMailIntroAutoNewPublicMessage', $object->subject);
                     $message .= "\n";
 
                     $message .= GETPOST('message');
@@ -934,28 +944,28 @@ class ActionsTicketsup
                         $message .= (!empty($recipient) ? $langs->trans('TicketNotificationRecipient') . ' : ' . $recipient . "\n" : '');
                     }
 
-                    $url_public_ticket = ($conf->global->TICKETS_URL_PUBLIC_INTERFACE ? $conf->global->TICKETS_URL_PUBLIC_INTERFACE . '/view.php' : dol_buildpath('/ticketsup/public/view.php', 2)) . '?track_id=' . $this->dao->track_id;
+                    $url_public_ticket = ($conf->global->TICKETS_URL_PUBLIC_INTERFACE ? $conf->global->TICKETS_URL_PUBLIC_INTERFACE . '/view.php' : dol_buildpath('/ticketsup/public/view.php', 2)) . '?track_id=' . $object->track_id;
                     $message .= "\n\n" . $langs->trans('TicketNewEmailBodyInfosTrackUrlCustomer') . ' : ' . $url_public_ticket . "\n";
 
                     // Add signature
                     $message .= '\n\n' . $message_signature;
 
-                    if (!empty($this->dao->origin_email) && !in_array($this->dao->origin_email, $sendto)) {
-                        $sendto[] = $this->dao->origin_email;
+                    if (!empty($object->origin_email) && !in_array($object->origin_email, $sendto)) {
+                        $sendto[] = $object->origin_email;
                     }
-                    if ($this->dao->fk_soc > 0 && !in_array($this->dao->origin_email, $sendto)) {
-                        $sendto[] = $this->dao->thirdparty->email;
+                    if ($object->fk_soc > 0 && !in_array($object->origin_email, $sendto)) {
+                        $sendto[] = $object->thirdparty->email;
                     }
                     $this->sendTicketMessageByEmail($subject, $message, '', $sendto);
                 }
 
                 $this->copyFilesForTicket();
 
-                $url = 'view.php?action=view_ticket&track_id=' . $this->dao->track_id;
+                $url = 'view.php?action=view_ticket&track_id=' . $object->track_id;
                 header("Location: " . $url);
                 exit;
             } else {
-            	setEventMessages($this->dao->error, $this->dao->errors, 'errors');
+            	setEventMessages($object->error, $object->errors, 'errors');
             }
         } else {
             setEventMessages($this->error, $this->errors, 'errors');
@@ -966,14 +976,14 @@ class ActionsTicketsup
      * Fetch object
      *
      * @param	int		$id				ID of ticket
-     * @param	int		$track_id		Track ID of ticket (for public area)
      * @param	string	$ref			Reference of ticket
+     * @param	string	$track_id		Track ID of ticket (for public area)
      * @return 	void
      */
-    public function fetch($id = 0, $track_id = 0, $ref = '')
+    public function fetch($id = 0, $ref = '', $track_id = '')
     {
         $this->getInstanceDao();
-        return $this->dao->fetch($id, $track_id, $ref);
+        return $this->dao->fetch($id, $ref, $track_id);
     }
 
     /**
@@ -997,7 +1007,7 @@ class ActionsTicketsup
     public function getInfo($id)
     {
         $this->getInstanceDao();
-        $this->dao->fetch($id, $track_id);
+        $this->dao->fetch($id, '', $track_id);
 
         $this->label = $this->dao->label;
         $this->description = $this->dao->description;
@@ -1090,19 +1100,20 @@ class ActionsTicketsup
     /**
      * View list of logs with timeline view
      *
-     * @param boolean $show_user Show user who make action
+     * @param 	boolean 	$show_user 	Show user who make action
+     * @param	Ticketsup	$object		Object
      */
-    public function viewTimelineTicketLogs($show_user = true)
+    public function viewTimelineTicketLogs($show_user = true, $object = true)
     {
     	global $conf, $langs, $bc;
 
     	// Load logs in cache
-    	$ret = $this->dao->loadCacheLogsTicket();
+    	$ret = $object->loadCacheLogsTicket();
 
-    	if (is_array($this->dao->cache_logs_ticket) && count($this->dao->cache_logs_ticket) > 0) {
+    	if (is_array($object->cache_logs_ticket) && count($object->cache_logs_ticket) > 0) {
     		print '<section id="cd-timeline">';
 
-    		foreach ($this->dao->cache_logs_ticket as $id => $arraylogs) {
+    		foreach ($object->cache_logs_ticket as $id => $arraylogs) {
     			print '<div class="cd-timeline-block">';
     			print '<div class="cd-timeline-img">';
     			//print '<img src="img/history.png" alt="">';
@@ -1136,10 +1147,12 @@ class ActionsTicketsup
     /**
      * Show ticket original message
      *
-     * @param User $user	$user wich display
-     * @param string $action    Action mode
+     * @param 	User		$user		User wich display
+     * @param 	string 		$action    	Action mode
+     * @param	TicketSup	$object		Object ticket
+     * @return	void
      */
-    public function viewTicketOriginalMessage($user, $action = '')
+    public function viewTicketOriginalMessage($user, $action, $object)
     {
     	global $langs;
     	if (!empty($user->rights->ticketsup->manage) && $action == 'edit_message_init') {
@@ -1147,16 +1160,18 @@ class ActionsTicketsup
 
     		print '<form action="' . $_SERVER['PHP_SELF'] . '" method="post">';
     		print '<input type="hidden" name="token" value="' . $_SESSION['newtoken'] . '">';
-    		print '<input type="hidden" name="track_id" value="' . $this->dao->track_id . '">';
+    		print '<input type="hidden" name="track_id" value="' . $object->track_id . '">';
     		print '<input type="hidden" name="action" value="set_message">';
     	}
 
     	// Initial message
-    	print '<table class="border" width="100%">';
+    	print '<div class="underbanner clearboth"></div>';
+    	print '<div class="div-table-responsive-no-min">';		// You can use div-table-responsive-no-min if you dont need reserved height for your table
+    	print '<table class="border centpercent margintable">';
     	print '<tr class="liste_titre"><td class="nowrap" colspan="2">';
     	print '<strong>' . $langs->trans("InitialMessage") . '</strong> ';
     	if ($user->rights->ticketsup->manage) {
-    		print '<a  href="' . $_SERVER['PHP_SELF'] . '?action=edit_message_init&amp;track_id=' . $this->dao->track_id . '">' . img_edit($langs->trans('Modify')) . ' ' . $langs->trans('Modify') . '</a>';
+    		print '<a  href="' . $_SERVER['PHP_SELF'] . '?action=edit_message_init&amp;track_id=' . $object->track_id . '">' . img_edit($langs->trans('Modify')) . ' ' . $langs->trans('Modify') . '</a>';
     	}
     	print '</td></tr>';
 
@@ -1165,20 +1180,20 @@ class ActionsTicketsup
     	print '<td>';
     	if (!empty($user->rights->ticketsup->manage) && $action == 'edit_message_init') {
     		// MESSAGE
-    		$msg = GETPOST('message_initial', 'alpha') ? GETPOST('message_initial', 'alpha') : $this->dao->message;
+    		$msg = GETPOST('message_initial', 'alpha') ? GETPOST('message_initial', 'alpha') : $object->message;
     		include_once DOL_DOCUMENT_ROOT . '/core/class/doleditor.class.php';
     		$uselocalbrowser = true;
     		$doleditor = new DolEditor('message_initial', $msg, '100%', 250, 'dolibarr_details', 'In', true, $uselocalbrowser);
     		$doleditor->Create();
     	} else {
     		// Deal with format differences (text / HTML)
-    		if (dol_textishtml($this->dao->message)) {
-    			print $this->dao->message;
+    		if (dol_textishtml($object->message)) {
+    			print $object->message;
     		} else {
-    			print dol_nl2br($this->dao->message);
+    			print dol_nl2br($object->message);
     		}
 
-    		//print '<div>' . $this->dao->message . '</div>';
+    		//print '<div>' . $object->message . '</div>';
     	}
     	print '</td>';
     	print '</tr>';
@@ -1198,14 +1213,15 @@ class ActionsTicketsup
     public function viewTicketMessages($show_private, $show_user = true)
     {
         global $conf, $langs, $user, $bc;
+		global $object;
 
         // Load logs in cache
-        $ret = $this->dao->loadCacheMsgsTicket();
+        $ret = $object->loadCacheMsgsTicket();
         $action = GETPOST('action');
 
         $this->viewTicketOriginalMessage($user, $action);
 
-        if (is_array($this->dao->cache_msgs_ticket) && count($this->dao->cache_msgs_ticket) > 0) {
+        if (is_array($object->cache_msgs_ticket) && count($object->cache_msgs_ticket) > 0) {
             print_titre($langs->trans('TicketMailExchanges'));
 
             print '<table class="border" style="width:100%;">';
@@ -1222,7 +1238,7 @@ class ActionsTicketsup
                 print '</td>';
             }
 
-            foreach ($this->dao->cache_msgs_ticket as $id => $arraymsgs) {
+            foreach ($object->cache_msgs_ticket as $id => $arraymsgs) {
                 if (!$arraymsgs['private']
                     || ($arraymsgs['private'] == "1" && $show_private)
                 ) {
@@ -1263,21 +1279,22 @@ class ActionsTicketsup
     /**
      * View list of message for ticket with timeline display
      *
-     * @param boolean $show_private Show private messages
-     * @param boolean $show_user    Show user who make action
+     * @param 	boolean 	$show_private Show private messages
+     * @param 	boolean 	$show_user    Show user who make action
+     * @param	Ticketsup	$object		 Object ticketsup
      */
-    public function viewTicketTimelineMessages($show_private, $show_user = true)
+    public function viewTicketTimelineMessages($show_private, $show_user, Ticketsup $object)
     {
     	global $conf, $langs, $user, $bc;
 
     	// Load logs in cache
-    	$ret = $this->dao->loadCacheMsgsTicket();
+    	$ret = $object->loadCacheMsgsTicket();
     	$action = GETPOST('action');
 
-    	if (is_array($this->dao->cache_msgs_ticket) && count($this->dao->cache_msgs_ticket) > 0) {
+    	if (is_array($object->cache_msgs_ticket) && count($object->cache_msgs_ticket) > 0) {
     		print '<section id="cd-timeline">';
 
-    		foreach ($this->dao->cache_msgs_ticket as $id => $arraymsgs) {
+    		foreach ($object->cache_msgs_ticket as $id => $arraymsgs) {
     			if (!$arraymsgs['private']
     			|| ($arraymsgs['private'] == "1" && $show_private)
     			) {
@@ -1326,7 +1343,7 @@ class ActionsTicketsup
     function load_previous_next_ref($filter, $fieldid)
     {
         $this->getInstanceDao();
-        return $this->dao->load_previous_next_ref($filter, $fieldid);
+        return $object->load_previous_next_ref($filter, $fieldid);
     }
 
     /**
@@ -1356,8 +1373,8 @@ class ActionsTicketsup
 
         // If no receiver defined, load all ticket linked contacts
         if (!is_array($array_receiver) || !count($array_receiver) > 0) {
-            $array_receiver = $this->dao->getInfosTicketInternalContact();
-            $array_receiver = array_merge($array_receiver, $this->dao->getInfosTicketExternalContact());
+            $array_receiver = $object->getInfosTicketInternalContact();
+            $array_receiver = array_merge($array_receiver, $object->getInfosTicketExternalContact());
         }
 
         if ($send_internal_cc) {
@@ -1419,7 +1436,7 @@ class ActionsTicketsup
      */
     public function copyFilesForTicket()
     {
-        global $conf;
+        global $conf, $object;
 
         // Create form object
         include_once DOL_DOCUMENT_ROOT . '/core/class/html.formmail.class.php';
@@ -1439,7 +1456,7 @@ class ActionsTicketsup
         $mimetype = $attachedfiles['mimes'];
 
         // Copy files into ticket directory
-        $destdir = $conf->ticketsup->dir_output . '/' . $this->dao->track_id;
+        $destdir = $conf->ticketsup->dir_output . '/' . $object->track_id;
 
         if (!dol_is_dir($destdir)) {
             dol_mkdir($destdir);
@@ -1460,49 +1477,45 @@ class ActionsTicketsup
 
     /**
      * Print html navbar with link to set ticket status
-<<<<<<< HEAD
-     * $selected : 0=>'NotRead', 1=>'Read', 3=>'Answered', 4=>'Assigned', 5 => 'InProgress', 6=> 'Waiting', 8=>'Closed', 9=>'Deleted'
      *
+     * @param	Ticketsup	$object		Ticket sup
      * @return	void
-=======
-     *
-     * @global type $langs
->>>>>>> branch 'develop' of git@github.com:Dolibarr/dolibarr.git
      */
-    public function viewStatusActions()
+    public function viewStatusActions(Ticketsup $object)
     {
         global $langs;
 
+        print '<div class="div-table-responsive-no-min">';
         print '<div class="tagtable noborder ">';
         print '<div class="tagtr liste_titre">';
         print '<div class="tagtd">';
         print '<strong>' . $langs->trans('TicketChangeStatus') . '</strong>';
         print '</div>';
         // Exclude status which requires specific method
-        $exclude_status = array(4, 9, 8);
+        $exclude_status = array(Ticketsup::STATUS_CLOSED, Ticketsup::STATUS_CANCELED);
         // Exclude actual status
-        $exclude_status = array_merge($exclude_status, array(intval($this->dao->fk_statut)));
-
-        // If status is new, don't show link which allow mark ticket as read
-        // Specific method exists to mark a ticket as read
-        if ($this->dao->fk_statut === '0') {
-            $exclude_status = array_merge($exclude_status, array(1));
-        }
+        $exclude_status = array_merge($exclude_status, array(intval($object->fk_statut)));
 
         // Sort results to be similar to status object list
-        sort($exclude_status);
+        //sort($exclude_status);
 
         //print '<br><div>';
-        foreach ($this->dao->statuts_short as $status => $statut_label) {
+        foreach ($object->statuts_short as $status => $statut_label) {
             if (!in_array($status, $exclude_status)) {
                 print '<div class="tagtd">';
-                print '<a class="button" href="' . $_SERVER['PHP_SELF'] . '?track_id=' . $this->dao->track_id . '&action=set_status&new_status=' . $status . '">';
-                print img_picto($langs->trans($this->dao->statuts_short[$status]), 'statut' . $status . '.png@ticketsup') . ' ' . $langs->trans($this->dao->statuts_short[$status]);
+
+                if ($status == 1)
+                	$urlforbutton = $_SERVER['PHP_SELF'] . '?track_id=' . $object->track_id . '&action=mark_ticket_read';	// To set as read, we use a dedicated action
+               	else
+               		$urlforbutton = $_SERVER['PHP_SELF'] . '?track_id=' . $object->track_id . '&action=set_status&new_status=' . $status;
+
+                print '<a class="button" href="' . $urlforbutton . '">';
+                print img_picto($langs->trans($object->statuts_short[$status]), 'statut' . $status . '.png@ticketsup') . ' ' . $langs->trans($object->statuts_short[$status]);
                 print '</a>';
                 print '</div>';
             }
         }
-        print '</div></div><br>';
+        print '</div></div></div><br>';
     }
 
 

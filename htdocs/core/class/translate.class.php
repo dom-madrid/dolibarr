@@ -205,7 +205,7 @@ class Translate
         // Check cache
 		if (! empty($this->_tab_loaded[$newdomain]))	// File already loaded for this domain
 		{
-			dol_syslog("Translate::Load already loaded for newdomain=".$newdomain);
+			//dol_syslog("Translate::Load already loaded for newdomain=".$newdomain);
 			return 0;
 		}
 
@@ -231,7 +231,7 @@ class Translate
 
 			$filelangexists=is_file($file_lang_osencoded);
 
-			dol_syslog(get_class($this).'::Load Try to read for alt='.$alt.' langofdir='.$langofdir.' newdomain='.$domain.' modulename='.$modulename.' file_lang='.$file_lang." => filelangexists=".$filelangexists);
+			//dol_syslog(get_class($this).'::Load Try to read for alt='.$alt.' langofdir='.$langofdir.' newdomain='.$domain.' modulename='.$modulename.' file_lang='.$file_lang." => filelangexists=".$filelangexists);
 
 			if ($filelangexists)
 			{
@@ -895,7 +895,7 @@ class Translate
 
 		$sql = "SELECT ".$fieldlabel." as label";
 		$sql.= " FROM ".MAIN_DB_PREFIX.$tablename;
-		$sql.= " WHERE ".$fieldkey." = '".($keyforselect?$keyforselect:$key)."'";
+		$sql.= " WHERE ".$fieldkey." = '".$db->escape($keyforselect?$keyforselect:$key)."'";
 		if ($filteronentity) $sql.= " AND entity IN (" . getEntity($tablename). ')';
 		dol_syslog(get_class($this).'::getLabelFromKey', LOG_DEBUG);
 		$resql = $db->query($sql);
@@ -977,7 +977,7 @@ class Translate
 		$sql = "SELECT code_iso, label, unicode";
 		$sql.= " FROM ".MAIN_DB_PREFIX."c_currencies";
 		$sql.= " WHERE active = 1";
-		if (! empty($currency_code)) $sql.=" AND code_iso = '".$currency_code."'";
+		if (! empty($currency_code)) $sql.=" AND code_iso = '".$db->escape($currency_code)."'";
 		//$sql.= " ORDER BY code_iso ASC"; // Not required, a sort is done later
 
 		dol_syslog(get_class($this).'::loadCacheCurrencies', LOG_DEBUG);

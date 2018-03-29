@@ -36,6 +36,8 @@
 //if (! defined('NOREQUIREHTML'))          define('NOREQUIREHTML','1');			// If we don't need to load the html.form.class.php
 //if (! defined('NOREQUIREAJAX'))          define('NOREQUIREAJAX','1');         // Do not load ajax.lib.php library
 //if (! defined("NOLOGIN"))                define("NOLOGIN",'1');				// If this page is public (can be called outside logged session)
+//if (! defined("MAIN_LANG_DEFAULT"))      define('MAIN_LANG_DEFAULT','auto');
+//if (! defined("MAIN_AUTHENTICATION_MODE")) define('MAIN_AUTHENTICATION_MODE','aloginmodule');
 
 // Load Dolibarr environment
 $res=0;
@@ -282,22 +284,20 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 	{
 	    $langs->load("projects");
 	    $morehtmlref.='<br>'.$langs->trans('Project') . ' ';
-	    if ($user->rights->mymodule->creer)
+	    if ($user->rights->mymodule->write)
 	    {
 	        if ($action != 'classify')
-	        {
 	            $morehtmlref.='<a href="' . $_SERVER['PHP_SELF'] . '?action=classify&amp;id=' . $object->id . '">' . img_edit($langs->transnoentitiesnoconv('SetProject')) . '</a> : ';
-	            if ($action == 'classify') {
-	                //$morehtmlref.=$form->form_project($_SERVER['PHP_SELF'] . '?id=' . $object->id, $object->socid, $object->fk_project, 'projectid', 0, 0, 1, 1);
-	                $morehtmlref.='<form method="post" action="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'">';
-	                $morehtmlref.='<input type="hidden" name="action" value="classin">';
-	                $morehtmlref.='<input type="hidden" name="token" value="'.$_SESSION['newtoken'].'">';
-	                $morehtmlref.=$formproject->select_projects($object->socid, $object->fk_project, 'projectid', $maxlength, 0, 1, 0, 1, 0, 0, '', 1);
-	                $morehtmlref.='<input type="submit" class="button valignmiddle" value="'.$langs->trans("Modify").'">';
-	                $morehtmlref.='</form>';
-	            } else {
-	                $morehtmlref.=$form->form_project($_SERVER['PHP_SELF'] . '?id=' . $object->id, $object->socid, $object->fk_project, 'none', 0, 0, 0, 1);
-	            }
+            if ($action == 'classify') {
+                //$morehtmlref.=$form->form_project($_SERVER['PHP_SELF'] . '?id=' . $object->id, $object->socid, $object->fk_project, 'projectid', 0, 0, 1, 1);
+                $morehtmlref.='<form method="post" action="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'">';
+                $morehtmlref.='<input type="hidden" name="action" value="classin">';
+                $morehtmlref.='<input type="hidden" name="token" value="'.$_SESSION['newtoken'].'">';
+                $morehtmlref.=$formproject->select_projects($object->socid, $object->fk_project, 'projectid', 0, 0, 1, 0, 1, 0, 0, '', 1);
+                $morehtmlref.='<input type="submit" class="button valignmiddle" value="'.$langs->trans("Modify").'">';
+                $morehtmlref.='</form>';
+            } else {
+                $morehtmlref.=$form->form_project($_SERVER['PHP_SELF'] . '?id=' . $object->id, $object->socid, $object->fk_project, 'none', 0, 0, 0, 1);
 	        }
 	    } else {
 	        if (! empty($object->fk_project)) {

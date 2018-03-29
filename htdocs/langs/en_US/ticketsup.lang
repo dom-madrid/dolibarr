@@ -25,11 +25,11 @@ Permission56001=See tickets
 Permission56002=Modify tickets
 Permission56003=Delete tickets
 Permission56004=Manage tickets
-Permission56005=See tickets of all thirdparties (not effective for external users, always be limited to the thirdparty they depend on)
+Permission56005=See tickets of all third parties (not effective for external users, always be limited to the thirdparty they depend on)
 
 TicketsupDictType=Tickets type
 TicketsupDictCategory=Tickets categories
-TicketsupDictSeverity=Severity classifications
+TicketsupDictSeverity=Tickets severity
 TicketTypeShortBUGSOFT=Dysfonctionnement logiciel
 TicketTypeShortBUGHARD=Dysfonctionnement matériel
 TicketTypeShortCOM=Commercial question
@@ -39,19 +39,20 @@ TicketTypeShortOTHER=Other
 
 TicketSeverityShortLOW=Low
 TicketSeverityShortNORMAL=Normal
-TicketSeverityShortLOWHIGH=Important
-TicketSeverityShortHIGH=Critical
+TicketSeverityShortHIGH=High
+TicketSeverityShortBLOCKING=Critical/Blocking
 
 ErrorBadEmailAddress=Field '%s' incorrect
 MenuTicketsupMyAssign=My tickets
-MenuTicketsupMyAssignNonClosed=My tickets non closed
-MenuListNonClosed=Non closed tickets
+MenuTicketsupMyAssignNonClosed=My open tickets
+MenuListNonClosed=Open tickets
 
 TypeContact_ticketsup_internal_CONTRIBUTOR=Contributor
 TypeContact_ticketsup_internal_SUPPORTTEC=Assigned user
 TypeContact_ticketsup_external_SUPPORTCLI=Customer contact / incident tracking
 TypeContact_ticketsup_external_CONTRIBUTOR=External contributor
 
+OriginEmail=Email source
 Notify_TICKETMESSAGE_SENTBYMAIL=Send ticket answer by email
 
 # Status
@@ -123,7 +124,7 @@ TicketsActivatePublicInterfaceHelp=Public interface allow any visitors to create
 TicketsAutoAssignTicket=Automatically assign the user who created the ticket
 TicketsAutoAssignTicketHelp=When creating a ticket, the user can be automatically assigned to the ticket.
 TicketSupNumberingModules=Tickets numbering module
-TicketNotNotifyTiersAtCreate=Do not notify the company to the creation
+TicketNotifyTiersAtCreation=Notify thirdparty at creation
 
 #
 # About page
@@ -143,8 +144,8 @@ TicketList=List of tickets
 TicketAssignedToMeInfos=This page display ticket list which are assigned to current user
 NoTicketsFound=No ticket found
 TicketViewAllTickets=View all tickets
-TicketViewNonClosedOnly=View only non closed tickets
-TicketStatByStatus=Tickets par statut
+TicketViewNonClosedOnly=View only open tickets
+TicketStatByStatus=Tickets by status
 
 #
 # Ticket card
@@ -163,7 +164,6 @@ SeeTicket=See ticket
 TicketMarkedAsRead=Ticket has been marked as read
 TicketReadOn=Read on
 TicketCloseOn=Clotured on
-UserAssignedTo=User assigned
 MarkAsRead=Mark ticket as read
 TicketMarkedAsReadButLogActionNotSaved=Ticket marked as closed but no action saved
 TicketHistory=Ticket history
@@ -180,7 +180,7 @@ TicketMessageSuccessfullyAdded=Message successfully added
 TicketMessagesList=Message list
 NoMsgForThisTicket=No message for this ticket
 Properties=Classification
-LatestNewTickets=Last %s tickets newest (not read)
+LatestNewTickets=Latest %s newest tickets (not read)
 TicketSeverity=Severity
 ShowTicket=See ticket
 RelatedTickets=Related tickets
@@ -224,7 +224,7 @@ TicketEmailOriginIssuer=Issuer at origin of the tickets
 InitialMessage=Initial Message
 LinkToAContract=Link to a contract
 TicketSupPleaseSelectAContract=Select a contract
-UnableToCreateInterIfNoSocid=Can not create a response file without defining a thirdparty
+UnableToCreateInterIfNoSocid=Can not create an intervention when no third party are defined
 TicketMailExchanges=Mail exchanges
 TicketInitialMessageModified=Initial message modified
 TicketMessageSuccesfullyUpdated=Message successfully updated
@@ -291,11 +291,11 @@ TicketNotificationNumberEmailSent=Notification email sent : %s
 #
 # Boxes
 #
-BoxLastTicketsup=Last tickets
-BoxLastTicketsupDescription=Last %s tickets saved
+BoxLastTicketsup=Latest created tickets
+BoxLastTicketsupDescription=Latest %s created tickets
 BoxLastTicketsupContent=
 BoxLastTicketsupNoRecordedTickets=No recent unread tickets
-BoxLastModifiedTicketsup=Last modified tickets
-BoxLastModifiedTicketsupDescription=Last %s tickets modified
+BoxLastModifiedTicketsup=Latest modified tickets
+BoxLastModifiedTicketsupDescription=Latest %s modified tickets
 BoxLastModifiedTicketsupContent=
 BoxLastModifiedTicketsupNoRecordedTickets=No recent modified tickets

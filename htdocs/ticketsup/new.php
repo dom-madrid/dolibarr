@@ -17,9 +17,8 @@
  */
 
 /**
- * Display form to add new ticket
- *
- * @package ticketsup
+ * 	\file       htdocs/ticketsup/new.php
+ *  \ingroup	ticketsup
  */
 
 require '../main.inc.php';
@@ -38,8 +37,7 @@ $id = GETPOST('id', 'int');
 $socid = GETPOST('socid', 'int');
 $contactid = GETPOST('contactid', 'int');
 $msg_id = GETPOST('msg_id', 'int');
-$notNotifyTiers = GETPOST("not_notify_tiers_at_create", 'alpha');
-$notnotifytiersatcreate = !empty($notNotifyTiers);
+$notifyTiers = GETPOST("notify_tiers_at_create", 'alpha');
 
 $action = GETPOST('action', 'alpha', 3);
 
@@ -48,14 +46,15 @@ if (!$user->rights->ticketsup->read || !$user->rights->ticketsup->write) {
     accessforbidden();
 }
 
-$object = new ActionsTicketsup($db);
+$object = new Ticketsup($db);
+$actionobject = new ActionsTicketsup($db);
 
 
 /*
  * Actions
  */
 
-$object->doActions($action);
+$actionobject->doActions($action, $object);
 
 
 
@@ -63,21 +62,22 @@ $object->doActions($action);
  * View
  */
 
+$form = new Form($db);
+
 $help_url = 'FR:DocumentationModuleTicket';
-$page_title = $object->getTitle($action);
+$page_title = $actionobject->getTitle($action);
 llxHeader('', $page_title, $help_url);
 
-$form = new Form($db);
 
 if ($action == 'create_ticket') {
     $formticket = new FormTicketsup($db);
 
-    print load_fiche_titre($langs->trans('NewTicket'), '', 'img/ticketsup-32.png', 1);
+    print load_fiche_titre($langs->trans('NewTicket'), '', 'title_ticketsup');
 
     $formticket->withfromsocid = $socid ? $socid : $user->societe_id;
     $formticket->withfromcontactid = $contactid ? $contactid : '';
     $formticket->withtitletopic = 1;
-    $formticket->withnotnotifytiersatcreate = $notnotifytiersatcreate;
+    $formticket->withnotifytiersatcreate = ($notifyTiers?1:0);
     $formticket->withusercreate = 1;
     $formticket->withref = 1;
     $formticket->fk_user_create = $user->id;

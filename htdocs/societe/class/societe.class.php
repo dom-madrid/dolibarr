@@ -12,6 +12,7 @@
  * Copyright (C) 2013       Peter Fontaine          <contact@peterfontaine.fr>
  * Copyright (C) 2014-2015  Marcos García           <marcosgdf@gmail.com>
  * Copyright (C) 2015       Raphaël Doursenaud      <rdoursenaud@gpcsolutions.fr>
+ * Copyright (C) 2017       Rui Strecht			    <rui.strecht@aliartalentos.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -115,6 +116,13 @@ class Societe extends CommonObject
 	var $state_id;
 	var $state_code;
 	var $state;
+
+	/**
+	 * Id of region
+	 * @var int
+	 */
+	var $region_code;
+	var $region;
 
 	/**
 	 * State code
@@ -991,10 +999,10 @@ class Societe extends CommonObject
 				$sql .= ", code_fournisseur = ".(! empty($this->code_fournisseur)?"'".$this->db->escape($this->code_fournisseur)."'":"null");
 				$sql .= ", code_compta_fournisseur = ".(! empty($this->code_compta_fournisseur)?"'".$this->db->escape($this->code_compta_fournisseur)."'":"null");
 			}
-			$sql .= ", fk_user_modif = ".(! empty($user->id)?"'".$user->id."'":"null");
+			$sql .= ", fk_user_modif = ".($user->id > 0 ? $user->id:"null");
 			$sql .= ", fk_multicurrency = ".(int) $this->fk_multicurrency;
-			$sql .= ', multicurrency_code = \''.$this->db->escape($this->multicurrency_code)."'";
-			$sql .= " WHERE rowid = '" . $id ."'";
+			$sql .= ", multicurrency_code = '".$this->db->escape($this->multicurrency_code)."'";
+			$sql .= " WHERE rowid = " . (int) $id;
 
 			$resql=$this->db->query($sql);
 			if ($resql)
@@ -1811,9 +1819,10 @@ class Societe extends CommonObject
 	 *  Return array of sales representatives
 	 *
 	 *  @param	User	$user		Object user
+	 *  @param	int		$mode		0=Array with properties, 1=Array of id.
 	 *  @return array       		Array of sales representatives of third party
 	 */
-	function getSalesRepresentatives(User $user)
+	function getSalesRepresentatives(User $user, $mode=0)
 	{
 		global $conf;
 
@@ -1841,14 +1850,22 @@ class Societe extends CommonObject
 			while ($i < $num)
 			{
 				$obj = $this->db->fetch_object($resql);
-				$reparray[$i]['id']=$obj->rowid;
-				$reparray[$i]['lastname']=$obj->lastname;
-				$reparray[$i]['firstname']=$obj->firstname;
-				$reparray[$i]['email']=$obj->email;
-				$reparray[$i]['statut']=$obj->statut;
-				$reparray[$i]['entity']=$obj->entity;
-				$reparray[$i]['login']=$obj->login;
-				$reparray[$i]['photo']=$obj->photo;
+
+				if (empty($mode))
+				{
+					$reparray[$i]['id']=$obj->rowid;
+					$reparray[$i]['lastname']=$obj->lastname;
+					$reparray[$i]['firstname']=$obj->firstname;
+					$reparray[$i]['email']=$obj->email;
+					$reparray[$i]['statut']=$obj->statut;
+					$reparray[$i]['entity']=$obj->entity;
+					$reparray[$i]['login']=$obj->login;
+					$reparray[$i]['photo']=$obj->photo;
+				}
+				else
+				{
+					$reparray[]=$obj->rowid;
+				}
 				$i++;
 			}
 			return $reparray;
@@ -2087,15 +2104,16 @@ class Societe extends CommonObject
 			$linkclose.= ' title="'.dol_escape_htmltag($label, 1).'"';
 			$linkclose.=' class="classfortooltip refurl"';
 
-		 	if (! is_object($hookmanager))
+		 	/*if (! is_object($hookmanager))
 			{
 				include_once DOL_DOCUMENT_ROOT.'/core/class/hookmanager.class.php';
 				$hookmanager=new HookManager($this->db);
 			}
-			$hookmanager->initHooks(array('societedao'));
+			$hookmanager->initHooks(array('thirdpartydao'));
 			$parameters=array('id'=>$this->id);
 			$reshook=$hookmanager->executeHooks('getnomurltooltip',$parameters,$this,$action);    // Note that $action and $object may have been modified by some hooks
 			if ($reshook > 0) $linkclose = $hookmanager->resPrint;
+			*/
 		}
 		$linkstart.=$linkclose.'>';
 		$linkend='</a>';
@@ -2111,6 +2129,18 @@ class Societe extends CommonObject
 		if ($withpicto) $result.=img_object(($notooltip?'':$label), ($this->picto?$this->picto:'generic'), ($notooltip?(($withpicto != 2) ? 'class="paddingright"' : ''):'class="'.(($withpicto != 2) ? 'paddingright ' : '').'classfortooltip valigntextbottom"'), 0, 0, $notooltip?0:1);
 		if ($withpicto != 2) $result.=($maxlen?dol_trunc($name,$maxlen):$name);
 		$result.=$linkend;
+
+		global $action;
+		if (! is_object($hookmanager))
+		{
+			include_once DOL_DOCUMENT_ROOT.'/core/class/hookmanager.class.php';
+			$hookmanager=new HookManager($this->db);
+		}
+		$hookmanager->initHooks(array('thirdpartydao'));
+		$parameters=array('id'=>$this->id, 'getnomurl'=>$result);
+		$reshook=$hookmanager->executeHooks('getNomUrl',$parameters,$this,$action);    // Note that $action and $object may have been modified by some hooks
+		if ($reshook > 0) $result = $hookmanager->resPrint;
+		else $result .= $hookmanager->resPrint;
 
 		return $result;
 	}
@@ -2851,27 +2881,23 @@ class Societe extends CommonObject
 			$chaine=trim($this->idprof1);
 			$chaine=preg_replace('/(\s)/','',$chaine);
 
+			if (!is_numeric($chaine)) return -1;
 			if (dol_strlen($chaine) != 9) return -1;
 
-			$sum = 0;
+			// on prend chaque chiffre un par un
+			// si son index (position dans la chaîne en commence à 0 au premier caractère) est impair
+			// on double sa valeur et si cette dernière est supérieure à 9, on lui retranche 9
+			// on ajoute cette valeur à la somme totale
 
-			for ($i = 0 ; $i < 10 ; $i = $i+2)
+			for ($index = 0; $index < 9; $index ++)
 			{
-				$sum = $sum + substr($this->idprof1, (8 - $i), 1);
+				$number = (int) $siren[$index];
+				if (($index % 2) != 0) { if (($number *= 2) > 9) $number -= 9; }
+				$sum += $number;
 			}
 
-			for ($i = 1 ; $i < 9 ; $i = $i+2)
-			{
-				$ps = 2 * substr($this->idprof1, (8 - $i), 1);
-
-				if ($ps > 9)
-				{
-					$ps = substr($ps, 0,1) + substr($ps, 1, 1);
-				}
-				$sum = $sum + $ps;
-			}
-
-			if (substr($sum, -1) != 0) return -1;
+			// le numéro est valide si la somme des chiffres est multiple de 10
+			if (($sum % 10) != 0) return -1;
 		}
 
 		// Verifie SIRET si pays FR
@@ -2880,7 +2906,23 @@ class Societe extends CommonObject
 			$chaine=trim($this->idprof2);
 			$chaine=preg_replace('/(\s)/','',$chaine);
 
+			if (!is_numeric($chaine)) return -1;
 			if (dol_strlen($chaine) != 14) return -1;
+
+			// on prend chaque chiffre un par un
+			// si son index (position dans la chaîne en commence à 0 au premier caractère) est pair
+			// on double sa valeur et si cette dernière est supérieure à 9, on lui retranche 9
+			// on ajoute cette valeur à la somme totale
+
+			for ($index = 0; $index < 14; $index ++)
+			{
+				$number = (int) $chaine[$index];
+				if (($index % 2) == 0) { if (($number *= 2) > 9) $number -= 9; }
+				$sum += $number;
+			}
+
+			// le numéro est valide si la somme des chiffres est multiple de 10
+			if (($sum % 10) != 0) return -1;
 		}
 
 		//Verify CIF/NIF/NIE if pays ES
@@ -3243,15 +3285,7 @@ class Societe extends CommonObject
 		$this->zip=empty($conf->global->MAIN_INFO_SOCIETE_ZIP)?'':$conf->global->MAIN_INFO_SOCIETE_ZIP;
 		$this->town=empty($conf->global->MAIN_INFO_SOCIETE_TOWN)?'':$conf->global->MAIN_INFO_SOCIETE_TOWN;
 		$this->state_id=empty($conf->global->MAIN_INFO_SOCIETE_STATE)?'':$conf->global->MAIN_INFO_SOCIETE_STATE;
-
-		/* Disabled: we don't want any SQL request into method setMySoc. This method set object from env only.
-        If we need label, label must be loaded by output that need it from id (label depends on output language)
-        require_once DOL_DOCUMENT_ROOT .'/core/lib/company.lib.php';
-        if (!empty($conf->global->MAIN_INFO_SOCIETE_STATE)) {
-            $this->state_id= $conf->global->MAIN_INFO_SOCIETE_STATE;
-            $this->state = getState($this->state_id);
-        }
-		*/
+		$this->region_code=empty($conf->global->MAIN_INFO_SOCIETE_REGION)?'':$conf->global->MAIN_INFO_SOCIETE_REGION;
 
 		$this->note_private=empty($conf->global->MAIN_INFO_SOCIETE_NOTE)?'':$conf->global->MAIN_INFO_SOCIETE_NOTE;
 
@@ -3889,6 +3923,53 @@ class Societe extends CommonObject
 					$this->errors = $c->errors;
 					break;
 				}
+			}
+		}
+
+		return $error ? -1 : 1;
+	}
+
+	/**
+	 * Sets sales representatives of the thirdparty
+	 *
+	 * @param 	int[]|int 	$salesrep	 	User ID or array of user IDs
+	 * @return	int							<0 if KO, >0 if OK
+	 */
+	public function setSalesRep($salesrep)
+	{
+		global $user;
+
+		// Handle single user
+		if (!is_array($salesrep)) {
+			$salesrep = array($salesrep);
+		}
+
+		// Get current users
+		$existing = $this->getSalesRepresentatives($user, 1);
+
+		// Diff
+		if (is_array($existing)) {
+			$to_del = array_diff($existing, $salesrep);
+			$to_add = array_diff($salesrep, $existing);
+		} else {
+			$to_del = array(); // Nothing to delete
+			$to_add = $salesrep;
+		}
+
+		$error = 0;
+
+		// Process
+		foreach ($to_del as $del) {
+			$this->del_commercial($user, $del);
+		}
+		foreach ($to_add as $add) {
+			$result = $this->add_commercial($user, $add);
+			if ($result < 0)
+			{
+				$error++;
+				$this->error = $c->error;
+				$this->errors = $c->errors;
+				break;
 			}
 		}
 
